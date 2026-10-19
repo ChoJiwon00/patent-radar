@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Patent Radar</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='6' fill='none' stroke='%232456d6' stroke-width='2.5'/><circle cx='8' cy='8' r='2' fill='%232456d6'/></svg>">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-inner">
+      <div>
+        <h1 class="brand"><span class="logo" aria-hidden="true"></span>Patent Radar</h1>
+        <p class="tagline">이차전지 · 반도체 뉴스와 한·미·중 특허를 매일 아침 한눈에</p>
+      </div>
+      <span id="kipris-chip" class="chip">KIPRIS 확인 중…</span>
+    </div>
+    <nav class="wrap tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="news">오늘의 뉴스</button>
+      <button role="tab" aria-selected="false" data-tab="patents">특허 브리핑 <small>준비 중</small></button>
+      <button role="tab" aria-selected="false" data-tab="search">키워드 검색 <small>준비 중</small></button>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <section id="tab-news" role="tabpanel">
+      <div class="toolbar">
+        <label class="field">
+          <span>날짜</span>
+          <select id="day-select"></select>
+        </label>
+        <div id="topic-filters" class="segmented" role="group" aria-label="주제"></div>
+        <input id="text-filter" type="search" placeholder="제목에서 찾기" aria-label="제목에서 찾기">
+        <button id="refresh-btn" class="primary">지금 새로 가져오기</button>
+      </div>
+      <p id="news-summary" class="muted" aria-live="polite"></p>
+      <div id="news-groups"></div>
+    </section>
+
+    <section id="tab-patents" role="tabpanel" hidden>
+      <div class="placeholder">
+        <h2>특허 브리핑은 KIPRIS 연결 후에 열려요</h2>
+        <p>오늘 뉴스에서 뽑은 기술 키워드로 한국·미국·중국 특허를 최신순으로 찾아요.</p>
+        <ul>
+          <li>한 번 본 특허는 다음 날 다시 나오지 않아요.</li>
+          <li>여러 나라에 출원되거나 뉴스에 계속 언급되는 특허는 🔥로 다시 강조해요.</li>
+          <li>청구항은 AI가 한국어로 번역하고 요약해요.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="tab-search" role="tabpanel" hidden>
+      <div class="placeholder">
+        <h2>키워드 검색</h2>
+        <p>원하는 기술 키워드로 한·미·중 특허를 직접 찾는 기능이에요. KIPRIS 인증키를 받으면 연결할게요.</p>
+        <input type="search" placeholder="예: 전고체 전해질 황화물" disabled>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
