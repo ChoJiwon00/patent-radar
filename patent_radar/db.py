@@ -18,11 +18,17 @@ CREATE TABLE IF NOT EXISTS news (
     source       TEXT,
     url          TEXT NOT NULL,
     published_at TEXT,               -- ISO 8601, KST
-    fetched_at   TEXT NOT NULL,      -- ISO 8601, KST. 이 날짜의 '새 기사'로 보여준다
-    keywords     TEXT                -- AI가 뽑은 기술 키워드(JSON 배열). 특허 검색 단계에서 채운다
+    fetched_at   TEXT NOT NULL       -- ISO 8601, KST. 이 날짜의 '새 기사'로 보여준다
 );
 CREATE INDEX IF NOT EXISTS idx_news_title_key ON news(title_key);
 CREATE INDEX IF NOT EXISTS idx_news_fetched_at ON news(fetched_at);
+
+-- 하루 한 건. /daily-briefing 스킬이 만든 AI 브리핑(주요 이야기 요약 + 특허 검색 키워드)
+CREATE TABLE IF NOT EXISTS briefings (
+    day        TEXT PRIMARY KEY,     -- YYYY-MM-DD
+    content    TEXT NOT NULL,        -- 검사를 통과한 브리핑 JSON
+    created_at TEXT NOT NULL         -- ISO 8601, KST
+);
 """
 
 

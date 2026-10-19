@@ -8,13 +8,22 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import db, news
+from . import briefing, db, news
 from .config import KST, kipris_api_key
 
 STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(title="Patent Radar")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.middleware("http")
+async def revalidate_pages(request, call_next):
+    """코드를 고친 뒤 브라우저가 예전 화면 파일을 계속 쓰지 않게, 매번 바뀌었는지 확인하게 한다."""
+    response = await call_next(request)
+    if not request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @app.get("/", include_in_schema=False)
@@ -42,6 +51,17 @@ def get_news(day: str | None = None) -> dict:
     with db.session() as conn:
         items = news.news_for_day(conn, target)
     return {"day": target.isoformat(), "items": items}
+
+
+@app.get("/api/briefing")
+def get_briefing(day: str | None = None) -> dict:
+    try:
+        target = date.fromisoformat(day) if day else datetime.now(KST).date()
+    except ValueError:
+        raise HTTPException(400, "day는 YYYY-MM-DD 형식이어야 합니다.")
+    with db.session() as conn:
+        found = briefing.get(conn, target)
+    return {"day": target.isoformat(), "briefing": found}
 
 
 @app.post("/api/news/refresh")

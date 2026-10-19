@@ -1,6 +1,6 @@
 const $ = (sel) => document.querySelector(sel);
 
-const state = { today: null, day: null, items: [], topic: "전체", text: "" };
+const state = { today: null, day: null, items: [], briefing: null, topic: "전체", text: "" };
 
 async function api(path, options) {
   const res = await fetch(path, options);
@@ -50,10 +50,68 @@ async function loadStatus() {
 }
 
 async function loadNews() {
-  const data = await api(`/api/news?day=${encodeURIComponent(state.day)}`);
+  const day = encodeURIComponent(state.day);
+  const [data, brief] = await Promise.all([api(`/api/news?day=${day}`), api(`/api/briefing?day=${day}`)]);
   state.items = data.items;
+  state.briefing = brief.briefing;
   renderTopicFilters();
+  renderBriefing();
   renderNews();
+}
+
+function renderBriefing() {
+  const box = $("#briefing");
+  const b = state.briefing;
+  if (!b) {
+    box.className = "briefing empty-note";
+    box.replaceChildren("이날의 AI 브리핑이 아직 없어요. Claude Code에서 /daily-briefing 을 실행하면 만들어져요.");
+    return;
+  }
+  box.className = "briefing";
+  const topics = b.topics.filter((t) => state.topic === "전체" || t.name === state.topic);
+  box.replaceChildren(
+    el(
+      "div",
+      { className: "briefing-head" },
+      el("span", { className: "badge", textContent: "AI 브리핑" }),
+      el("span", { className: "muted", textContent: `${b.created_at.slice(11, 16)} 작성` }),
+    ),
+    el("p", { className: "overview", textContent: b.overview }),
+    el("div", { className: "briefing-topics" }, ...topics.map(renderBriefingTopic)),
+  );
+}
+
+function renderBriefingTopic(t) {
+  const stories = t.stories.map((s) =>
+    el(
+      "li",
+      {},
+      el("strong", { textContent: s.headline }),
+      el("p", { textContent: s.summary }),
+      el(
+        "div",
+        { className: "story-sources" },
+        ...s.articles.map((a) =>
+          el("a", { href: safeUrl(a.url), target: "_blank", rel: "noopener noreferrer", textContent: a.source || "기사", title: a.title }),
+        ),
+      ),
+    ),
+  );
+  const keywords = t.keywords.map((k) =>
+    el("span", { className: "kw", title: k.reason }, k.ko, el("span", { textContent: ` · ${k.en}` })),
+  );
+  return el(
+    "div",
+    { className: "btopic" },
+    el("h3", { textContent: t.name }),
+    el("ol", { className: "stories" }, ...stories),
+    el(
+      "div",
+      { className: "keywords" },
+      el("div", { className: "keywords-label", textContent: "특허 검색 키워드" }),
+      el("div", { className: "kw-list" }, ...keywords),
+    ),
+  );
 }
 
 function renderTopicFilters() {
@@ -66,6 +124,7 @@ function renderTopicFilters() {
       button.addEventListener("click", () => {
         state.topic = t;
         renderTopicFilters();
+        renderBriefing();
         renderNews();
       });
       return button;

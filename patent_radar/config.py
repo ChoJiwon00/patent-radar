@@ -30,6 +30,7 @@ class NewsSettings:
     lookback_days: int
     max_per_query: int
     topics: list[Topic]
+    exclude_sources: frozenset[str] = frozenset()
 
 
 def load_news_settings(path: Path = TOPICS_PATH) -> NewsSettings:
@@ -40,6 +41,7 @@ def load_news_settings(path: Path = TOPICS_PATH) -> NewsSettings:
         lookback_days=int(news.get("lookback_days", 1)),
         max_per_query=int(news.get("max_per_query", 30)),
         topics=[Topic(t["name"], list(t["queries"])) for t in raw.get("topics", [])],
+        exclude_sources=frozenset(news.get("exclude_sources", [])),
     )
 
 

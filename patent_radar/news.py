@@ -88,7 +88,7 @@ def fetch_query(client: httpx.Client, query: str, settings: NewsSettings) -> lis
         },
     )
     resp.raise_for_status()
-    articles = parse_rss(resp.text)
+    articles = [a for a in parse_rss(resp.text) if a.source not in settings.exclude_sources]
     # RSS는 관련도 순이라서 최신순으로 다시 정렬한다.
     articles.sort(key=lambda a: a.published_at or "", reverse=True)
     return articles[: settings.max_per_query]
@@ -130,7 +130,7 @@ def collect(conn: sqlite3.Connection, settings: NewsSettings | None = None) -> l
 def news_for_day(conn: sqlite3.Connection, day: date) -> list[dict]:
     """그날 처음 수집된 기사들 (주제별, 최신순)."""
     rows = conn.execute(
-        """SELECT id, topic, query, title, source, url, published_at, fetched_at, keywords
+        """SELECT id, topic, query, title, source, url, published_at, fetched_at
            FROM news WHERE substr(fetched_at, 1, 10) = ?
            ORDER BY topic, published_at DESC""",
         (day.isoformat(),),
