@@ -128,3 +128,27 @@ def get(conn: sqlite3.Connection, day: date) -> dict | None:
         for s in t["stories"]:
             s["articles"] = [articles[i] for i in s["article_ids"] if i in articles]
     return briefing
+
+
+def for_page(found: dict) -> dict:
+    """claude.ai 브리핑 페이지에 올릴 형태(get()의 결과를 받는다). 기사 번호 대신 기사 정보를 담는다."""
+    return {
+        "day": found["day"],
+        "overview": found["overview"],
+        "created_at": found["created_at"],
+        "topics": [
+            {
+                "name": t["name"],
+                "stories": [
+                    {
+                        "headline": s["headline"],
+                        "summary": s["summary"],
+                        "articles": [{k: a[k] for k in ("title", "source", "url")} for a in s["articles"]],
+                    }
+                    for s in t["stories"]
+                ],
+                "keywords": t["keywords"],
+            }
+            for t in found["topics"]
+        ],
+    }

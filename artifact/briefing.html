@@ -1,0 +1,306 @@
+<title>Patent Radar 브리핑</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+  /* Layout: 맨 위 제호와 날짜 칩, 그 아래 오늘의 흐름, 본문은 두 주제를 나란히 놓는 2단(좁으면 1단). 특허 문서의 【 】 문단 번호를 순위 표시로 쓴다. */
+  :root {
+    --bg: #f2f5f4;
+    --surface: #ffffff;
+    --ink: #15201b;
+    --muted: #586761;
+    --line: #d7dfdb;
+    --chip: #3949ab;      /* 반도체 */
+    --cell: #1b7350;      /* 이차전지 */
+    --stamp: #a3303a;     /* 날짜 도장 */
+    --display: "Hahmlet", "Noto Serif KR", "Batang", serif;
+    --body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101513; --surface: #171e1b; --ink: #e4ebe8; --muted: #93a39c; --line: #2a3531;
+      --chip: #9aa7ff; --cell: #5fc797; --stamp: #f08a8f; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101513; --surface: #171e1b; --ink: #e4ebe8; --muted: #93a39c; --line: #2a3531;
+    --chip: #9aa7ff; --cell: #5fc797; --stamp: #f08a8f; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.65 var(--body);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 1120px; margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--chip); outline-offset: 2px; border-radius: 4px; }
+
+  .masthead { background: var(--surface); border-bottom: 1px solid var(--line); }
+  .masthead .wrap { padding-block: 28px 0; display: grid; gap: 6px; }
+  .eyebrow { margin: 0; font: 500 12px/1.4 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { margin: 0; font: 700 clamp(26px, 4.6vw, 38px)/1.2 var(--display); letter-spacing: -.01em; text-wrap: balance; }
+
+  .days { display: flex; gap: 6px; overflow-x: auto; padding-block: 16px 14px; scrollbar-width: thin; }
+  .days button {
+    flex: none; font: 500 13px/1 var(--mono); font-variant-numeric: tabular-nums;
+    color: var(--muted); background: transparent; border: 1px solid var(--line);
+    border-radius: 999px; padding: 8px 12px; cursor: pointer;
+  }
+  .days button:hover { color: var(--ink); border-color: var(--muted); }
+  .days button[aria-pressed="true"] { color: var(--surface); background: var(--ink); border-color: var(--ink); }
+
+  main.wrap { padding-block: 28px 56px; display: grid; gap: 28px; }
+
+  .lead { display: grid; gap: 10px; max-width: 72ch; }
+  .dateline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .stamp {
+    font: 500 13px/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--stamp);
+    border: 1.5px solid currentColor; border-radius: 4px; padding: 5px 8px; transform: rotate(-1.5deg);
+  }
+  .written { font-size: 13px; color: var(--muted); }
+  .overview { margin: 0; font: 500 clamp(17px, 2.2vw, 19px)/1.75 var(--body); }
+
+  .topics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 20px; align-items: start; }
+  .topic {
+    --tone: var(--chip);
+    background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--tone);
+    border-radius: 6px; padding: 20px 22px 22px; display: grid; gap: 18px; min-width: 0;
+  }
+  .topic[data-topic="이차전지"] { --tone: var(--cell); }
+  .topic > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .topic h2 { margin: 0; font: 700 22px/1.3 var(--display); color: var(--tone); }
+  .topic .count { font: 400 12px/1 var(--mono); color: var(--muted); }
+
+  .stories { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+  .stories li { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; }
+  .no { font: 500 13px/1.9 var(--mono); color: var(--tone); font-variant-numeric: tabular-nums; }
+  .stories h3 { margin: 0; font: 600 16px/1.5 var(--body); text-wrap: balance; }
+  .stories p { margin: 2px 0 0; color: var(--ink); font-size: 14.5px; }
+  .story-body { min-width: 0; }
+  .sources { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 6px; font-size: 12.5px; }
+  .sources a { color: var(--muted); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .sources a:hover { color: var(--tone); text-decoration-color: currentColor; }
+
+  .keywords { border-top: 1px dashed var(--line); padding-top: 16px; display: grid; gap: 10px; }
+  .keywords h4 { margin: 0; font: 500 12px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .kw-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .kw { display: grid; gap: 2px; padding-left: 12px; border-left: 2px solid color-mix(in srgb, var(--tone) 45%, transparent); }
+  .kw b { font-weight: 600; font-size: 15px; }
+  .kw code { font: 400 13px/1.5 var(--mono); color: var(--tone); overflow-wrap: anywhere; }
+  .kw small { font-size: 12.5px; color: var(--muted); }
+
+  .notice {
+    background: var(--surface); border: 1px dashed var(--line); border-radius: 6px;
+    padding: 28px 24px; color: var(--muted); max-width: 72ch;
+  }
+  .notice strong { display: block; color: var(--ink); font: 700 18px/1.4 var(--display); margin-bottom: 6px; }
+
+  .foot { margin: 0; font-size: 12.5px; color: var(--muted); }
+
+  @media (max-width: 480px) {
+    .topic { padding: 18px 16px 20px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="masthead">
+  <div class="wrap">
+    <p class="eyebrow">Patent Radar · 매일 오전 9시</p>
+    <h1>이차전지 · 반도체 브리핑</h1>
+    <nav id="days" class="days" aria-label="브리핑 날짜"></nav>
+  </div>
+</header>
+
+<main class="wrap" id="main">
+  <div class="notice">
+    <strong>브리핑을 불러오는 중이에요</strong>
+    매일 오전 9시쯤 그날의 뉴스 브리핑이 이곳에 쌓여요.
+  </div>
+</main>
+
+<script>
+  const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+  const state = { docs: [], selected: null, status: "loading" };
+
+  function el(tag, props, ...children) {
+    const node = Object.assign(document.createElement(tag), props || {});
+    node.append(...children.filter((c) => c !== null && c !== undefined));
+    return node;
+  }
+
+  function formatDay(day) {
+    const [y, m, d] = day.split("-").map(Number);
+    const weekday = WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+    return `${y}.${String(m).padStart(2, "0")}.${String(d).padStart(2, "0")} (${weekday})`;
+  }
+
+  function shortDay(day) {
+    const [, m, d] = day.split("-").map(Number);
+    return `${m}/${d}`;
+  }
+
+  function safeUrl(url) {
+    return typeof url === "string" && /^https?:\/\//i.test(url) ? url : null;
+  }
+
+  function notice(title, text) {
+    return el("div", { className: "notice" }, el("strong", { textContent: title }), text);
+  }
+
+  function renderDays() {
+    const nav = document.getElementById("days");
+    nav.replaceChildren(
+      ...state.docs.map((b) => {
+        const button = el("button", { type: "button", textContent: shortDay(b.day), title: formatDay(b.day) });
+        button.setAttribute("aria-pressed", String(b.day === state.selected));
+        button.addEventListener("click", () => {
+          state.selected = b.day;
+          render();
+        });
+        return button;
+      }),
+    );
+  }
+
+  function renderStory(story, index) {
+    const sources = (story.articles || [])
+      .filter((a) => safeUrl(a.url))
+      .map((a) =>
+        el("a", {
+          href: safeUrl(a.url),
+          target: "_blank",
+          rel: "noopener noreferrer",
+          textContent: a.source || "기사",
+          title: a.title || "",
+        }),
+      );
+    return el(
+      "li",
+      {},
+      el("span", { className: "no", textContent: `【${index + 1}】` }),
+      el(
+        "div",
+        { className: "story-body" },
+        el("h3", { textContent: story.headline }),
+        el("p", { textContent: story.summary }),
+        sources.length ? el("div", { className: "sources" }, ...sources) : null,
+      ),
+    );
+  }
+
+  function renderKeyword(k) {
+    return el(
+      "li",
+      { className: "kw" },
+      el("b", { textContent: k.ko }),
+      el("code", { textContent: k.en }),
+      k.reason ? el("small", { textContent: k.reason }) : null,
+    );
+  }
+
+  function renderTopic(topic) {
+    const section = el(
+      "section",
+      { className: "topic" },
+      el(
+        "header",
+        {},
+        el("h2", { textContent: topic.name }),
+        el("span", { className: "count", textContent: `주요 이야기 ${topic.stories.length}` }),
+      ),
+      el("ol", { className: "stories" }, ...topic.stories.map(renderStory)),
+      el(
+        "div",
+        { className: "keywords" },
+        el("h4", { textContent: "특허 검색 키워드" }),
+        el("ul", { className: "kw-list" }, ...(topic.keywords || []).map(renderKeyword)),
+      ),
+    );
+    section.dataset.topic = topic.name;
+    return section;
+  }
+
+  function render() {
+    renderDays();
+    const main = document.getElementById("main");
+
+    if (state.status === "unavailable") {
+      main.replaceChildren(
+        notice("브리핑을 불러올 수 없어요", "claude.ai에 로그인한 상태로 이 페이지를 열어 주세요."),
+      );
+      return;
+    }
+    if (state.status === "error") {
+      main.replaceChildren(notice("브리핑을 불러오지 못했어요", "잠시 뒤 페이지를 새로 고쳐 주세요."));
+      return;
+    }
+    if (state.status === "loading") return;
+
+    const b = state.docs.find((d) => d.day === state.selected);
+    if (!b) {
+      main.replaceChildren(
+        notice(
+          "아직 저장된 브리핑이 없어요",
+          "매일 오전 9시쯤 Claude가 이차전지·반도체 뉴스를 정리해 이곳에 올려요. 바로 보고 싶으면 Claude Code에서 /daily-briefing 을 실행하세요.",
+        ),
+      );
+      return;
+    }
+
+    const written = typeof b.created_at === "string" ? `${b.created_at.slice(11, 16)} 작성` : "";
+    main.replaceChildren(
+      el(
+        "section",
+        { className: "lead" },
+        el(
+          "div",
+          { className: "dateline" },
+          el("span", { className: "stamp", textContent: formatDay(b.day) }),
+          written ? el("span", { className: "written", textContent: written }) : null,
+        ),
+        el("p", { className: "overview", textContent: b.overview }),
+      ),
+      el("div", { className: "topics" }, ...(b.topics || []).map(renderTopic)),
+      el("p", {
+        className: "foot",
+        textContent: "요약은 기사 제목을 바탕으로 AI가 작성했어요. 자세한 내용은 언론사 링크에서 확인하세요.",
+      }),
+    );
+  }
+
+  async function start() {
+    const db = window.claude && window.claude.use ? await window.claude.use("db") : null;
+    if (!db) {
+      state.status = "unavailable";
+      render();
+      return;
+    }
+    db.collection("briefings")
+      .orderBy("day", "desc")
+      .limit(60)
+      .onSnapshot(
+        (snap) => {
+          state.docs = snap.docs.filter((d) => d.exists).map((d) => d.data());
+          state.status = "ready";
+          if (!state.docs.some((d) => d.day === state.selected)) {
+            state.selected = state.docs.length ? state.docs[0].day : null;
+          }
+          render();
+        },
+        () => {
+          state.status = "error";
+          render();
+        },
+      );
+  }
+
+  start();
+</script>

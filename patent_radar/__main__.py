@@ -4,6 +4,7 @@
     python -m patent_radar news --json           수집 후 오늘의 새 기사를 JSON으로 출력한다 (스킬이 읽는 형식)
     python -m patent_radar briefing save FILE    AI 브리핑 JSON을 검사해서 저장한다
     python -m patent_radar briefing show         저장된 브리핑을 보여준다
+    python -m patent_radar briefing export FILE  claude.ai 브리핑 페이지에 올릴 JSON을 만든다
     python -m patent_radar serve                 웹페이지를 띄운다 (http://127.0.0.1:8000)
 """
 
@@ -66,6 +67,18 @@ def cmd_briefing_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_briefing_export(args: argparse.Namespace) -> int:
+    day = date.fromisoformat(args.day) if args.day else datetime.now(KST).date()
+    with db.session() as conn:
+        found = briefing.get(conn, day)
+    if found is None:
+        print(f"{day} 브리핑이 없어요.")
+        return 1
+    Path(args.file).write_text(json.dumps(briefing.for_page(found), ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"{day} 브리핑을 페이지용으로 {args.file}에 저장했어요")
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -93,6 +106,10 @@ def main() -> int:
     p_show = brief_sub.add_parser("show", help="저장된 브리핑 보기")
     p_show.add_argument("--day", help="YYYY-MM-DD (기본: 오늘)")
     p_show.set_defaults(func=cmd_briefing_show)
+    p_export = brief_sub.add_parser("export", help="claude.ai 브리핑 페이지에 올릴 JSON 파일 만들기")
+    p_export.add_argument("file")
+    p_export.add_argument("--day", help="YYYY-MM-DD (기본: 오늘)")
+    p_export.set_defaults(func=cmd_briefing_export)
 
     p_serve = sub.add_parser("serve", help="웹페이지 실행")
     p_serve.add_argument("--port", type=int, default=8000)

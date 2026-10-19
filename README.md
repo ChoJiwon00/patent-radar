@@ -36,6 +36,7 @@ AI가 하는 일은 [Claude Code](https://claude.com/claude-code) 스킬([`.clau
 2. 같은 사건을 다룬 기사를 묶고, 주제별로 중요한 이야기 3~5개를 골라 요약한다.
 3. 특허 청구항에 나올 만한 기술 용어를 한국어·영어 짝으로 뽑는다.
 4. `python -m patent_radar briefing save`로 형식을 검사한 뒤 저장한다.
+5. `python -m patent_radar briefing export`로 만든 파일을 claude.ai 브리핑 페이지([`artifact/briefing.html`](artifact/briefing.html))의 데이터베이스에도 올린다. 휴대폰에서도 볼 수 있다.
 
 Claude Code에서 `/daily-briefing`을 입력하면 바로 실행되고, 예약 작업으로 매일 오전 9시에 자동 실행됩니다.
 

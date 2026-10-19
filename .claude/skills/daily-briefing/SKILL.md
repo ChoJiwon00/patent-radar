@@ -1,7 +1,7 @@
 ---
 name: daily-briefing
 description: Patent Radar의 하루 브리핑. 이차전지·반도체 뉴스를 새로 수집하고, 중요한 이야기를 골라 한국어로 요약하고, 특허 검색에 쓸 기술 키워드를 뽑아 저장한다. "오늘 브리핑", "뉴스 브리핑", "daily briefing"을 요청받거나 매일 아침 예약 작업에서 실행된다.
-allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data/**), Read(data/**)
+allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data/**), Read(data/**), ArtifactData
 ---
 
 # 하루 브리핑
@@ -79,7 +79,23 @@ allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data
 
 "형식 오류"가 나오면 메시지대로 JSON을 고치고 다시 저장한다. 같은 날 다시 실행하면 새 브리핑으로 바뀐다.
 
-## 4. 보고하기
+## 4. claude.ai 브리핑 페이지에 올리기
+
+사용자가 claude.ai 사이드바에 고정해 둔 비공개 페이지
+(https://claude.ai/artifact/1BqRNiZ2mYqMX2t9bkegTd)에도 같은 브리핑을 올린다.
+
+1. 페이지용 파일을 만든다.
+   ```
+   .venv\Scripts\python.exe -m patent_radar briefing export data/briefing-page.json
+   ```
+2. `ArtifactData` 도구를 쓴다. 보이지 않으면 ToolSearch로 `select:ArtifactData`를 불러온다.
+3. 먼저 `action: "get"`, `url`은 위 주소, `collection: "briefings"`, `doc_id`는 1단계의 `day`로 읽는다.
+4. `action: "set"`, 같은 `url`·`collection`·`doc_id`, `file_path`는 `data/briefing-page.json`의 절대 경로로 쓴다.
+   3에서 문서가 있었으면 그 `version`을 `if_version`으로 넘기고, 없었으면 `if_version`을 뺀다.
+
+여기서 실패해도 로컬 저장은 이미 끝났으니 다시 시도하지 말고, 실패 내용만 보고에 적는다.
+
+## 5. 보고하기
 
 사용자에게 한국어로 짧게 보고한다.
 
@@ -87,4 +103,4 @@ allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data
 - 주제별 주요 이야기 제목
 - 특허 검색 키워드 (한국어 · 영어)
 - 실패한 검색어가 있었다면 그 목록
-- 웹페이지(http://127.0.0.1:8000)의 "오늘의 뉴스" 탭 맨 위에서도 볼 수 있다는 안내
+- claude.ai 사이드바의 "Patent Radar 브리핑" 페이지와 로컬 웹페이지(http://127.0.0.1:8000)에서도 볼 수 있다는 안내

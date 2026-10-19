@@ -40,6 +40,17 @@ def test_save_and_get_attaches_articles(conn):
     assert briefing.get(conn, date(2026, 10, 20)) is None
 
 
+def test_for_page_swaps_article_ids_for_article_info(conn):
+    briefing.save(conn, sample())
+
+    page = briefing.for_page(briefing.get(conn, date(2026, 10, 19)))
+
+    story = page["topics"][0]["stories"][0]
+    assert "article_ids" not in story
+    assert story["articles"] == [{"title": "전고체 배터리 양산", "source": "한국경제", "url": "https://x/1"}]
+    assert page["created_at"]
+
+
 def test_saving_again_replaces_same_day(conn):
     briefing.save(conn, sample())
     briefing.save(conn, sample(overview="다시 만든 브리핑"))
