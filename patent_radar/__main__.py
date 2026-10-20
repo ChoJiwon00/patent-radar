@@ -12,6 +12,11 @@
     python -m patent_radar patents export FILE   claude.ai 브리핑 페이지에 올릴 JSON을 만든다
     python -m patent_radar patents report        GitHub에 올릴 보고서(reports/날짜.md)를 만든다
     python -m patent_radar patents usage         이번 달 KIPRIS 호출 수를 보여준다
+    python -m patent_radar stars sync FOLDER     페이지에서 별표한 관심 특허 목록과 맞춘다
+    python -m patent_radar stars check           한국 관심 특허의 진행 상태를 다시 확인한다
+    python -m patent_radar weekly stats          일주일 통계를 뽑는다 (주간 리포트용)
+    python -m patent_radar weekly save FILE      AI 분석을 저장하고 reports/weekly/날짜.md를 만든다
+    python -m patent_radar site export           GitHub Pages 공개 사이트(docs/)를 만든다
     python -m patent_radar serve                 웹페이지를 띄운다 (http://127.0.0.1:8000)
 """
 
@@ -23,8 +28,8 @@ from pathlib import Path
 
 import httpx
 
-from . import briefing, db, news, patents
-from .config import KST, kipris_api_key, load_news_settings, load_patent_settings
+from . import briefing, db, news, patents, stars, website, weekly
+from .config import KST, kipris_api_key, load_interests, load_news_settings, load_patent_settings
 
 
 def cmd_news(args: argparse.Namespace) -> int:
@@ -127,9 +132,16 @@ def cmd_patents_search(args: argparse.Namespace) -> int:
             foreign = sum(1 for k in keywords if "US" in k.countries)
             print(f"뉴스 브리핑 키워드로 찾아요: 한국 {kr}개, 미국·중국 {foreign}개{note}.")
 
+        interests = load_interests()
+        if not args.keyword and interests.keywords:
+            keywords += [patents.Keyword(k.ko, k.en, k.countries, k.topic, k.alt, interest=True)
+                         for k in interests.keywords]
+            print(f"고정 관심 키워드 {len(interests.keywords)}개도 함께 찾아요.")
+        ipc_by_topic = {t.name: t.ipc for t in load_news_settings().topics}
+
         with httpx.Client(timeout=30) as http:
             client = patents.KiprisClient(conn, key, settings, http)
-            content = patents.collect(conn, client, keywords, day, settings)
+            content = patents.collect(conn, client, keywords, day, settings, ipc_by_topic, interests.companies)
 
         result = patents.for_claude(conn, day)
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
@@ -144,6 +156,18 @@ def cmd_patents_search(args: argparse.Namespace) -> int:
             print(f"  - {w}")
         print(f"자세한 내용: {args.out}")
         _print_usage(conn)
+    return 0
+
+
+def cmd_patents_rescore(args: argparse.Namespace) -> int:
+    """검색 없이 그날 특허의 주목도 순위를 다시 매긴다 (관련도 판정을 저장한 뒤에 쓴다)."""
+    key = kipris_api_key() or ""
+    day = _day(args.day)
+    with db.session() as conn, httpx.Client(timeout=30) as http:
+        client = patents.KiprisClient(conn, key, load_patent_settings(), http)
+        content = patents.collect(conn, client, [], day, load_patent_settings(), companies=load_interests().companies)
+    hot = sum(1 for i in content["items"] if i["rank"])
+    print(f"{day} 순위를 다시 매겼어요: 🔥 주목 특허 {hot}건")
     return 0
 
 
@@ -202,18 +226,92 @@ def cmd_patents_report(args: argparse.Namespace) -> int:
     REPORTS_DIR.mkdir(exist_ok=True)
     path = REPORTS_DIR / f"{day}.md"
     path.write_text(patents.report_markdown(page), encoding="utf-8")
-
-    days = sorted((p.stem for p in REPORTS_DIR.glob("????-??-??.md")), reverse=True)
-    index = ["# 특허 브리핑 모음", "", "Patent Radar가 매일 찾은 한·미·중 특허를 날짜별로 모아 둔 곳이에요.", ""]
-    index += [f"- [{d}]({d}.md)" for d in days]
-    (REPORTS_DIR / "README.md").write_text("\n".join(index) + "\n", encoding="utf-8")
+    _write_reports_index()
     print(f"GitHub용 보고서를 만들었어요: reports/{day}.md")
+    return 0
+
+
+def _write_reports_index() -> None:
+    days = sorted((p.stem for p in REPORTS_DIR.glob("????-??-??.md")), reverse=True)
+    weeks = sorted((p.stem for p in (REPORTS_DIR / "weekly").glob("????-??-??.md")), reverse=True)
+    index = ["# 특허 브리핑 모음", "", "Patent Radar가 매일 찾은 한·미·중 특허와 주간 트렌드 리포트를 모아 둔 곳이에요.", ""]
+    if weeks:
+        index += ["## 주간 트렌드 리포트", ""] + [f"- [{w} 까지의 일주일](weekly/{w}.md)" for w in weeks] + [""]
+    index += ["## 매일 특허 브리핑", ""] + [f"- [{d}]({d}.md)" for d in days]
+    (REPORTS_DIR / "README.md").write_text("\n".join(index) + "\n", encoding="utf-8")
+
+
+def cmd_weekly_stats(args: argparse.Namespace) -> int:
+    end = _day(args.end)
+    with db.session() as conn:
+        stats = weekly.build_stats(conn, end, [t.name for t in load_news_settings().topics])
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.out).write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
+    p = stats["patents"]
+    print(f"{stats['start']} ~ {stats['end']}: 브리핑 {len(stats['briefings'])}일, 기사 {stats['news']['total']}건, "
+          f"특허 {p['total']}건(🔥 {len(p['spotlight'])}건) → {args.out}")
+    return 0
+
+
+def cmd_weekly_save(args: argparse.Namespace) -> int:
+    end = _day(args.end)
+    try:
+        commentary = json.loads(Path(args.file).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"파일을 읽지 못했어요: {e}")
+        return 2
+    with db.session() as conn:
+        stats = weekly.build_stats(conn, end, [t.name for t in load_news_settings().topics])
+        try:
+            weekly.save(conn, stats, commentary)
+        except weekly.WeeklyError as e:
+            print(f"형식 오류: {e}")
+            return 2
+        report = weekly.get(conn, end)
+    (REPORTS_DIR / "weekly").mkdir(parents=True, exist_ok=True)
+    (REPORTS_DIR / "weekly" / f"{end}.md").write_text(weekly.report_markdown(report), encoding="utf-8")
+    _write_reports_index()
+    if args.page:
+        Path(args.page).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"주간 리포트를 저장했어요: reports/weekly/{end}.md" + (f", 페이지용 {args.page}" if args.page else ""))
+    return 0
+
+
+def cmd_stars_sync(args: argparse.Namespace) -> int:
+    docs = stars.read_page_docs(Path(args.folder))
+    with db.session() as conn:
+        added, removed = stars.sync(conn, docs)
+        total = conn.execute("SELECT COUNT(*) FROM stars").fetchone()[0]
+    print(f"★ 관심 특허 {total}건 (새로 {added}건, 별표 해제 {removed}건)")
+    return 0
+
+
+def cmd_stars_check(args: argparse.Namespace) -> int:
+    key = kipris_api_key()
+    if not key:
+        print(".env 파일에 KIPRIS_API_KEY가 없어요.")
+        return 2
+    with db.session() as conn, httpx.Client(timeout=30) as http:
+        client = patents.KiprisClient(conn, key, load_patent_settings(), http)
+        changes, warnings = stars.check(conn, client)
+    for c in changes:
+        print(f"상태 변화: {c['key']} {c['before']} → {c['after']}")
+    for w in warnings:
+        print(f"  - {w}")
+    print(f"★ 관심 특허 상태 확인 완료 (바뀐 특허 {len(changes)}건)")
     return 0
 
 
 def cmd_patents_usage(args: argparse.Namespace) -> int:
     with db.session() as conn:
         _print_usage(conn)
+    return 0
+
+
+def cmd_site_export(args: argparse.Namespace) -> int:
+    with db.session() as conn:
+        index = website.export(conn)
+    print(f"GitHub Pages 사이트를 만들었어요: docs/ (브리핑 {len(index['days'])}일, 주간 {len(index['weeks'])}주)")
     return 0
 
 
@@ -256,6 +354,9 @@ def main() -> int:
     p_search.add_argument("--day", help="YYYY-MM-DD (기본: 오늘)")
     p_search.add_argument("--out", default="data/patents-today.json", help="스킬이 읽을 결과 파일")
     p_search.set_defaults(func=cmd_patents_search)
+    p_rescore = pat_sub.add_parser("rescore", help="검색 없이 그날 주목도 순위만 다시 매기기")
+    p_rescore.add_argument("--day", help="YYYY-MM-DD (기본: 오늘)")
+    p_rescore.set_defaults(func=cmd_patents_rescore)
     p_list = pat_sub.add_parser("list", help="검색하지 않고 그날 특허 브리핑을 스킬이 읽는 파일로 다시 만들기")
     p_list.add_argument("--day", help="YYYY-MM-DD (기본: 오늘)")
     p_list.add_argument("--out", default="data/patents-today.json")
@@ -273,6 +374,31 @@ def main() -> int:
     p_report.set_defaults(func=cmd_patents_report)
     p_usage = pat_sub.add_parser("usage", help="이번 달 KIPRIS 호출 수")
     p_usage.set_defaults(func=cmd_patents_usage)
+
+    p_stars = sub.add_parser("stars", help="★ 관심 특허 맞추기·상태 확인")
+    stars_sub = p_stars.add_subparsers(dest="action", required=True)
+    p_ssync = stars_sub.add_parser("sync", help="페이지에서 내려받은 별표 목록과 맞추기")
+    p_ssync.add_argument("folder", help="ArtifactData로 stars 문서를 내려받은 폴더")
+    p_ssync.set_defaults(func=cmd_stars_sync)
+    p_scheck = stars_sub.add_parser("check", help="한국 관심 특허의 진행 상태 다시 확인 (KIPRIS 호출)")
+    p_scheck.set_defaults(func=cmd_stars_check)
+
+    p_week = sub.add_parser("weekly", help="주간 트렌드 리포트")
+    week_sub = p_week.add_subparsers(dest="action", required=True)
+    p_wstats = week_sub.add_parser("stats", help="일주일 통계를 뽑아 AI가 읽을 파일로 저장")
+    p_wstats.add_argument("--end", help="일주일의 마지막 날 YYYY-MM-DD (기본: 오늘)")
+    p_wstats.add_argument("--out", default="data/weekly-stats.json")
+    p_wstats.set_defaults(func=cmd_weekly_stats)
+    p_wsave = week_sub.add_parser("save", help="AI 분석을 저장하고 보고서(reports/weekly/날짜.md)를 만든다")
+    p_wsave.add_argument("file")
+    p_wsave.add_argument("--end", help="일주일의 마지막 날 YYYY-MM-DD (기본: 오늘)")
+    p_wsave.add_argument("--page", help="claude.ai 페이지에 올릴 JSON도 이 파일로 저장")
+    p_wsave.set_defaults(func=cmd_weekly_save)
+
+    p_site = sub.add_parser("site", help="GitHub Pages 공개 사이트")
+    site_sub = p_site.add_subparsers(dest="action", required=True)
+    p_sexport = site_sub.add_parser("export", help="docs/에 페이지와 데이터 JSON을 만든다")
+    p_sexport.set_defaults(func=cmd_site_export)
 
     p_serve = sub.add_parser("serve", help="웹페이지 실행")
     p_serve.add_argument("--port", type=int, default=8000)

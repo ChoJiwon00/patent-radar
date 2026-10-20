@@ -1,6 +1,6 @@
-# 매일 수집할 뉴스 주제와 검색어
-# 검색어를 추가하거나 빼서 원하는 대로 바꿀 수 있어요.
-# OR 를 쓰면 둘 중 하나라도 들어간 기사를 찾습니다.
+# 매일 수집할 뉴스 주제와 검색어, 특허 검색 설정
+# 값을 바꾸면 다음 실행부터 반영돼요.
+# 뉴스 검색어에 OR 를 쓰면 둘 중 하나라도 들어간 기사를 찾습니다.
 
 [news]
 # 최근 며칠 치 기사를 가져올지
@@ -13,10 +13,13 @@ exclude_sources = ["Calgary Roughnecks"]
 [patents]
 # 뉴스 브리핑 키워드 중 주제마다 앞에서 몇 개로 특허를 찾을지.
 # KIPRIS 무료 한도는 국내·해외가 따로 월 1,000회라서 나눠 정해요.
-#   한국: 3주제 × 5개 = 하루 검색 15회 + 상세 조회 최대 15회 → 한 달 최대 약 930회
+#   한국: 3주제 × 4개 + 관심 키워드 3개 = 하루 검색 15회 + 상세 조회(새 특허만) + 재검색 최대 3회
+#         → 보통 한 달 700~850회. 많아지면 아래 상한(950회)에서 자동으로 멈춰요.
 #   해외: 3주제 × 2개 × 미국·중국 = 하루 검색 12회 + 상세 조회 최대 12회 → 한 달 약 744회
-kr_keywords_per_topic = 5
+kr_keywords_per_topic = 4
 foreign_keywords_per_topic = 2
+# 한국 특허가 0건이면 다른 표현으로 다시 찾는 횟수 (하루 합계)
+max_kr_retries = 3
 # 키워드·나라마다 브리핑에 넣을 새 특허 수
 per_search = 1
 # 검색 결과에서 살펴볼 개수 (주목도 계산에 씀)
@@ -32,17 +35,54 @@ spotlight_size = 5
 # 서비스(국내/해외)별 한 달 호출 상한. KIPRIS 무료 한도는 1,000회예요.
 monthly_call_limit = 950
 
+[interests]
+# 관심 회사: 이 회사의 특허는 주목도 점수 +2, 페이지에 '관심 회사'로 표시돼요.
+# 출원인 이름에 이 글자가 들어 있으면 같은 회사로 봐요 (영문은 대소문자 무시).
+companies = [
+  "삼성에스디아이", "SAMSUNG SDI", "엘지에너지솔루션", "LG ENERGY SOLUTION", "에스케이온", "SK ON",
+  "CONTEMPORARY AMPEREX", "BYD",
+  "삼성전자", "SAMSUNG ELECTRONICS", "에스케이하이닉스", "SK HYNIX", "TAIWAN SEMICONDUCTOR", "MICRON",
+]
+
+# 고정 관심 키워드: 뉴스와 상관없이 매일 찾는 기술. 무료 한도 때문에 기본은 한국 특허만 찾아요.
+# countries = ["KR", "US", "CN"] 로 바꾸면 해외도 찾지만 해외 호출이 하루 4회씩 늘어요.
+[[interests.keywords]]
+ko = "황화물 고체 전해질"
+en = "sulfide solid electrolyte"
+topic = "이차전지"
+alt = ["황화물계 고체전해질"]
+
+[[interests.keywords]]
+ko = "나트륨 이온 전지"
+en = "sodium ion battery"
+topic = "ESS"
+alt = ["나트륨이온 배터리"]
+
+[[interests.keywords]]
+ko = "하이브리드 본딩"
+en = "hybrid bonding"
+topic = "반도체"
+alt = ["하이브리드 접합"]
+
 # 주제는 적힌 순서대로 브리핑에 나와요.
 # 여러 주제에 걸리는 기사는 먼저 적힌 주제로 저장되지만, AI 브리핑이 내용을 보고 알맞은 주제로 옮겨요.
+# ipc: 이 주제의 특허 분류(국제특허분류) 앞부분. 여기에 맞지 않는 특허는 검색 결과에서 빼요.
+#   H01M 전지 · C01B/C01D/C01G 전지 소재 화합물 · C22B 금속 회수(재활용) · B60L 전기차 · H02J 충전·전력망
+#   H02M 전력 변환 · G01R31 배터리 상태 측정 · H01G 커패시터
+#   H01L/H10B/H10D/H10N 반도체 소자·메모리 · H10W 반도체 패키징 · G11C 메모리 회로 · G03F 노광 · C23C 박막 증착
+#   H01J37 플라즈마 장비 · G06F/G06N 컴퓨팅(메모리 시스템·AI 가속)
 
 [[topics]]
 name = "이차전지"
 queries = ["이차전지", "전고체 배터리", "양극재 OR 음극재"]
+ipc = ["H01M", "C01B", "C01D", "C01G", "C22B", "B60L", "H02J7"]
 
 [[topics]]
 name = "ESS"
 queries = ["ESS 배터리", "에너지저장장치 OR 에너지저장시스템", "BESS OR 전력망 배터리"]
+ipc = ["H02J", "H01M", "H02M", "B60L", "G01R31", "H01G"]
 
 [[topics]]
 name = "반도체"
 queries = ["반도체", "HBM", "파운드리 OR 반도체 공정"]
+ipc = ["H01L", "H10B", "H10D", "H10N", "H10W", "G11C", "G03F", "C23C", "H01J37", "G06F", "G06N"]

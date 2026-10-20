@@ -1,8 +1,8 @@
 # 비밀 값: API 키는 절대 GitHub에 올리지 않는다
 .env
 
-# 실행 중 생기는 데이터
-data/
+# 실행 중 생기는 데이터 (맨 위 data/ 폴더만. docs/data/는 GitHub Pages용이라 올린다)
+/data/
 
 # Python
 .venv/

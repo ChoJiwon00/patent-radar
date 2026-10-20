@@ -40,7 +40,11 @@ CREATE TABLE IF NOT EXISTS patents (
     applicant       TEXT,
     filed_at        TEXT,                      -- YYYY-MM-DD
     published_at    TEXT,                      -- YYYY-MM-DD (공개일, 없으면 등록일)
-    priority_no     TEXT,                      -- 우선권 번호. 같으면 같은 발명을 여러 나라에 낸 것
+    priority_no     TEXT,                      -- 우선권 '번호 숫자|날짜'. 같으면 같은 발명을 여러 나라에 낸 것
+    priority_country TEXT,                     -- 우선권을 처음 낸 나라 코드 (US, JP …)
+    pct_no          TEXT,                      -- 국제출원(PCT) 번호. 같으면 같은 발명
+    ipc             TEXT,                      -- 국제특허분류 "H01M10/0562|H01M4/62"
+    status          TEXT,                      -- 진행 상태 (한국: 공개/등록/거절 …)
     url             TEXT,
     abstract        TEXT,                      -- 원문 요약
     claims          TEXT,                      -- 원문 청구항
@@ -49,6 +53,8 @@ CREATE TABLE IF NOT EXISTS patents (
     summary_ko      TEXT,
     key_claim_ko    TEXT,
     detail_ko       TEXT,                      -- AI가 쓴 자세한 설명. JSON [{"heading": ..., "body": ...}]
+    relevant        INTEGER,                   -- AI 판정: 1 오늘 주제와 관련 높음, 0 낮음, NULL 아직 판정 안 함
+    relevance_note  TEXT,                      -- 판정 이유 한 줄
     first_shown_day TEXT,                      -- 처음 브리핑에 넣은 날. 다음 날부터는 새 특허 목록에 다시 넣지 않는다
     UNIQUE (country, doc_key)
 );
@@ -59,7 +65,26 @@ CREATE TABLE IF NOT EXISTS patent_matches (
     patent_id INTEGER NOT NULL REFERENCES patents(id),
     day       TEXT NOT NULL,
     keyword   TEXT NOT NULL,
+    buzz      INTEGER NOT NULL DEFAULT 0,  -- 키워드가 나온 뉴스 이야기의 기사 수
     PRIMARY KEY (patent_id, day, keyword)
+);
+
+-- ★ 관심 특허. claude.ai 브리핑 페이지에서 별표한 것을 가져와 진행 상태를 추적한다.
+CREATE TABLE IF NOT EXISTS stars (
+    key        TEXT PRIMARY KEY,           -- "KR-1020250046256" (나라-상세 조회 키)
+    patent_id  INTEGER REFERENCES patents(id),
+    starred_at TEXT NOT NULL,
+    status     TEXT,                       -- 마지막으로 확인한 진행 상태
+    checked_at TEXT,
+    changed_at TEXT                        -- 상태가 마지막으로 바뀐 날
+);
+
+-- 주간 리포트. 통계와 AI 분석을 함께 보관한다.
+CREATE TABLE IF NOT EXISTS weekly_reports (
+    end_day    TEXT PRIMARY KEY,           -- 일주일의 마지막 날 YYYY-MM-DD
+    stats      TEXT NOT NULL,              -- 숫자로 뽑은 통계 JSON
+    commentary TEXT NOT NULL,              -- AI가 쓴 분석 JSON
+    created_at TEXT NOT NULL
 );
 
 -- 하루 한 건. 그날 특허 브리핑에 넣은 특허 목록
@@ -80,7 +105,18 @@ CREATE TABLE IF NOT EXISTS api_usage (
 
 
 # 예전에 만든 DB에 새로 생긴 칸을 더한다. CREATE TABLE IF NOT EXISTS는 이미 있는 표를 바꾸지 않기 때문이다.
-NEW_COLUMNS = [("patents", "detail_ko", "TEXT")]
+NEW_COLUMNS = [
+    ("patents", "detail_ko", "TEXT"),
+    ("patents", "priority_country", "TEXT"),
+    ("patents", "pct_no", "TEXT"),
+    ("patents", "ipc", "TEXT"),
+    ("patents", "status", "TEXT"),
+    ("patents", "relevant", "INTEGER"),
+    ("patents", "relevance_note", "TEXT"),
+    ("patent_matches", "buzz", "INTEGER NOT NULL DEFAULT 0"),
+]
+# 새 칸을 쓰는 색인은 칸을 더한 뒤에 만든다.
+AFTER_NEW_COLUMNS = "CREATE INDEX IF NOT EXISTS idx_patents_pct ON patents(pct_no);"
 
 
 def connect(path: Path | str = DB_PATH) -> sqlite3.Connection:
@@ -92,6 +128,7 @@ def connect(path: Path | str = DB_PATH) -> sqlite3.Connection:
     for table, column, kind in NEW_COLUMNS:
         if column not in {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+    conn.executescript(AFTER_NEW_COLUMNS)
     return conn
 
 

@@ -34,7 +34,33 @@ def test_parse_foreign_search_builds_number_link_and_priority():
     [f] = patents.parse_foreign_search(ET.fromstring(FOREIGN_XML), "US")
     assert f.number == "US 2026/0312050 A1"
     assert f.url == "https://patents.google.com/patent/US20260312050A1"
-    assert f.priority_no == "2025-062014|20250403"
+    assert f.priority_no == "2025062014|20250403"
+
+
+def test_priority_key_matches_across_offices():
+    # 한국 상세는 '63/622,744'와 '2024.01.19', 해외 검색은 '63622744'와 '20240119'로 적혀 온다.
+    assert patents.priority_key("63/622,744", "2024.01.19") == patents.priority_key("63622744", "20240119")
+    assert patents.pct_key("PCT/US2025/012076") == "PCTUS2025012076"
+
+
+def test_parse_kr_family():
+    xml = """<r><registerStatus>공개</registerStatus>
+      <priorityInfo><priorityApplicationCountry>미국</priorityApplicationCountry>
+        <priorityApplicationDate>2024.01.19</priorityApplicationDate>
+        <priorityApplicationNumber>63/622,744</priorityApplicationNumber></priorityInfo>
+      <internationalInfo><internationalApplicationNumber>PCT/US2025/012076</internationalApplicationNumber></internationalInfo>
+    </r>"""
+    info = patents.parse_kr_family(ET.fromstring(xml))
+    assert info == {"status": "공개", "ipc": None, "priority_no": "63622744|20240119", "priority_country": "US",
+                    "pct_no": "PCTUS2025012076"}
+
+
+def test_ipc_filter():
+    assert patents.matches_ipc("H01M10/0562|H01M4/62", ("H01M",))
+    assert not patents.matches_ipc("B60R16/03|G06Q30/02", ("H01M", "H02J"))
+    assert patents.matches_ipc(None, ("H01M",))  # 분류 정보가 없으면 거르지 않는다
+    assert patents.matches_ipc("G06Q30/02", ())  # 주제에 분류가 없으면 거르지 않는다
+    assert patents._ipc("H01M 10/0562|H01M 4/62") == "H01M10/0562|H01M4/62"
 
 
 def test_us_grant_number_drops_leading_zero():
@@ -64,9 +90,9 @@ def test_foreign_claim_count():
     assert patents.parse_foreign_claims(root)[1] == 4
 
 
-def found(country, key, published="2026-10-01", priority=None):
-    return patents.Found(country, key, f"{country}-{key}", f"title {key}", "ACME", None, published, priority,
-                         f"https://example.com/{key}")
+def found(country, key, published="2026-10-01", priority=None, ipc=None, applicant="ACME"):
+    return patents.Found(country, key, f"{country}-{key}", f"title {key}", applicant, None, published, priority,
+                         f"https://example.com/{key}", ipc=ipc)
 
 
 class FakeClient:
@@ -149,10 +175,13 @@ def test_save_summaries_and_report(conn):
     detail = [{"heading": "어떤 발명인가요", "body": "슬러리에 관한 발명"},
               {"heading": "구성·방법 자세히", "body": "- 황화물 전해질\n- 바인더"},
               {"heading": "용어 풀이", "body": "- 슬러리: 걸쭉한 혼합물"}]
-    summary = {"title_ko": "전고체 슬러리", "summary_ko": "요약", "key_claim_ko": "핵심", "detail_ko": detail}
+    summary = {"title_ko": "전고체 슬러리", "summary_ko": "요약", "key_claim_ko": "핵심", "detail_ko": detail,
+               "relevant": True, "relevance_note": "키워드와 같은 기술"}
 
     with pytest.raises(patents.SummaryError, match="999"):
         patents.save_summaries(conn, {"items": [{"id": 999, **summary}]}, date(2026, 10, 21))
+    with pytest.raises(patents.SummaryError, match="relevant"):
+        patents.save_summaries(conn, {"items": [{"id": pid, **summary, "relevant": "예"}]}, date(2026, 10, 21))
     with pytest.raises(patents.SummaryError, match="detail_ko"):
         patents.save_summaries(conn, {"items": [{"id": pid, **summary, "detail_ko": detail[:1]}]}, date(2026, 10, 21))
     patents.save_summaries(conn, {"items": [{"id": pid, **summary}]}, date(2026, 10, 21))

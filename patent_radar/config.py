@@ -23,6 +23,8 @@ load_dotenv(ROOT / ".env")
 class Topic:
     name: str
     queries: list[str]
+    # 이 주제에 맞는 특허 분류(IPC) 접두어. 비어 있으면 거르지 않는다.
+    ipc: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -40,15 +42,43 @@ def load_news_settings(path: Path = TOPICS_PATH) -> NewsSettings:
     return NewsSettings(
         lookback_days=int(news.get("lookback_days", 1)),
         max_per_query=int(news.get("max_per_query", 30)),
-        topics=[Topic(t["name"], list(t["queries"])) for t in raw.get("topics", [])],
+        topics=[Topic(t["name"], list(t["queries"]), tuple(t.get("ipc", []))) for t in raw.get("topics", [])],
         exclude_sources=frozenset(news.get("exclude_sources", [])),
     )
 
 
 @dataclass(frozen=True)
+class InterestKeyword:
+    ko: str
+    en: str
+    topic: str | None = None
+    alt: tuple[str, ...] = ()
+    countries: tuple[str, ...] = ("KR",)
+
+
+@dataclass(frozen=True)
+class Interests:
+    """뉴스와 상관없이 늘 지켜보는 것들."""
+
+    companies: tuple[str, ...] = ()
+    keywords: tuple[InterestKeyword, ...] = ()
+
+
+def load_interests(path: Path = TOPICS_PATH) -> Interests:
+    with open(path, "rb") as f:
+        raw = tomllib.load(f).get("interests", {})
+    keywords = tuple(
+        InterestKeyword(k["ko"], k["en"], k.get("topic"), tuple(k.get("alt", [])), tuple(k.get("countries", ["KR"])))
+        for k in raw.get("keywords", [])
+    )
+    return Interests(tuple(raw.get("companies", [])), keywords)
+
+
+@dataclass(frozen=True)
 class PatentSettings:
-    kr_keywords_per_topic: int = 5
+    kr_keywords_per_topic: int = 4
     foreign_keywords_per_topic: int = 2
+    max_kr_retries: int = 3
     per_search: int = 1
     scan_per_search: int = 10
     recent_years: int = 3

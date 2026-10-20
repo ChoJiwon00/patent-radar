@@ -4,7 +4,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
 <style>
-  /* Layout: 맨 위 제호와 날짜 칩, 그 아래 오늘의 흐름, 본문은 두 주제를 나란히 놓는 2단(좁으면 1단). 특허 문서의 【 】 문단 번호를 순위 표시로 쓴다. */
+  /* Layout: 맨 위 제호·일간/주간 탭·날짜 칩, 그 아래 오늘의 흐름, 특허(한 줄 카드), 뉴스 세 주제(3단, 좁으면 1단).
+     특허 문서의 【 】 문단 번호를 순위 표시로 쓴다. 같은 파일이 claude.ai(페이지 DB)와 GitHub Pages(data/*.json)에서 돈다. */
   :root {
     --bg: #f2f5f4;
     --surface: #ffffff;
@@ -14,7 +15,10 @@
     --chip: #3949ab;      /* 반도체 */
     --cell: #1b7350;      /* 이차전지 */
     --grid: #9a5b0c;      /* ESS */
-    --stamp: #a3303a;     /* 날짜 도장 */
+    --stamp: #a3303a;     /* 날짜 도장 · 주목 */
+    --bar: #46534d;       /* 단일 계열 막대 */
+    --warn-bg: #fdf3e2;
+    --warn-ink: #7a4a06;
     --display: "Hahmlet", "Noto Serif KR", "Batang", serif;
     --body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
     --mono: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
@@ -22,12 +26,14 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #101513; --surface: #171e1b; --ink: #e4ebe8; --muted: #93a39c; --line: #2a3531;
-      --chip: #9aa7ff; --cell: #5fc797; --grid: #e9b062; --stamp: #f08a8f; color-scheme: dark;
+      --chip: #9aa7ff; --cell: #5fc797; --grid: #e9b062; --stamp: #f08a8f; --bar: #a9b8b1;
+      --warn-bg: #33280f; --warn-ink: #f0c47a; color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
     --bg: #101513; --surface: #171e1b; --ink: #e4ebe8; --muted: #93a39c; --line: #2a3531;
-    --chip: #9aa7ff; --cell: #5fc797; --grid: #e9b062; --stamp: #f08a8f; color-scheme: dark;
+    --chip: #9aa7ff; --cell: #5fc797; --grid: #e9b062; --stamp: #f08a8f; --bar: #a9b8b1;
+    --warn-bg: #33280f; --warn-ink: #f0c47a; color-scheme: dark;
   }
 
   * { box-sizing: border-box; }
@@ -42,14 +48,24 @@
     padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
   a { color: inherit; }
+  button { font: inherit; color: inherit; }
   :focus-visible { outline: 2px solid var(--chip); outline-offset: 2px; border-radius: 4px; }
 
   .masthead { background: var(--surface); border-bottom: 1px solid var(--line); }
   .masthead .wrap { padding-block: 28px 0; display: grid; gap: 6px; }
   .eyebrow { margin: 0; font: 500 12px/1.4 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
   h1 { margin: 0; font: 700 clamp(26px, 4.6vw, 38px)/1.2 var(--display); letter-spacing: -.01em; text-wrap: balance; }
+  .about { margin: 2px 0 0; font-size: 14px; color: var(--muted); max-width: 72ch; }
+  .about a { color: var(--ink); text-underline-offset: 3px; }
 
-  .days { display: flex; gap: 6px; overflow-x: auto; padding-block: 16px 14px; scrollbar-width: thin; }
+  .modes { display: flex; gap: 4px; margin-top: 14px; border-bottom: 1px solid var(--line); }
+  .modes button {
+    background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px 10px;
+    font-weight: 600; color: var(--muted); cursor: pointer;
+  }
+  .modes button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+
+  .days { display: flex; gap: 6px; overflow-x: auto; padding-block: 14px; scrollbar-width: thin; }
   .days button {
     flex: none; font: 500 13px/1 var(--mono); font-variant-numeric: tabular-nums;
     color: var(--muted); background: transparent; border: 1px solid var(--line);
@@ -59,6 +75,8 @@
   .days button[aria-pressed="true"] { color: var(--surface); background: var(--ink); border-color: var(--ink); }
 
   main.wrap { padding-block: 28px 56px; display: grid; gap: 28px; }
+
+  .alert { margin: 0; padding: 12px 16px; border-radius: 6px; background: var(--warn-bg); color: var(--warn-ink); font-size: 14px; max-width: 78ch; }
 
   .lead { display: grid; gap: 10px; max-width: 72ch; }
   .dateline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
@@ -75,11 +93,12 @@
     background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--tone);
     border-radius: 6px; padding: 20px 22px 22px; display: grid; gap: 18px; min-width: 0;
   }
-  .topic[data-topic="이차전지"] { --tone: var(--cell); }
-  .topic[data-topic="ESS"] { --tone: var(--grid); }
+  [data-topic="이차전지"] { --tone: var(--cell); }
+  [data-topic="ESS"] { --tone: var(--grid); }
+  [data-topic="반도체"] { --tone: var(--chip); }
   .topic > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
   .topic h2 { margin: 0; font: 700 22px/1.3 var(--display); color: var(--tone); }
-  .topic .count { font: 400 12px/1 var(--mono); color: var(--muted); }
+  .count { font: 400 12px/1 var(--mono); color: var(--muted); }
 
   .stories { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
   .stories li { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; }
@@ -100,26 +119,27 @@
   .kw small { font-size: 12.5px; color: var(--muted); }
 
   .patents { display: grid; gap: 18px; min-width: 0; }
-  .patents > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
-  .patents h2 { margin: 0; font: 700 24px/1.3 var(--display); }
-  .patents .count { font: 400 12px/1 var(--mono); color: var(--muted); }
-  .patents h3 { margin: 6px 0 0; font: 500 12px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .patents > header, .block > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+  .patents h2, .block h2 { margin: 0; font: 700 24px/1.3 var(--display); }
+  .patents h3, .block h3 { margin: 6px 0 0; font: 500 12px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
   .pat-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
   .pat {
     background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
     padding: 18px 20px; display: grid; gap: 8px; min-width: 0; align-content: start;
   }
   .pat > * { max-width: 78ch; }
-  .detail { border-top: 1px dashed var(--line); margin-top: 6px; padding-top: 12px; display: grid; gap: 6px; }
-  .detail-label { margin: 0; font: 500 12px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-  .detail h5 { margin: 8px 0 0; font: 600 14.5px/1.5 var(--body); }
-  .detail p { margin: 0; font-size: 14.5px; }
-  .detail ul { margin: 0; padding-left: 1.2em; display: grid; gap: 3px; font-size: 14.5px; }
   .pat.hot { border-color: color-mix(in srgb, var(--stamp) 55%, var(--line)); background: color-mix(in srgb, var(--stamp) 5%, var(--surface)); }
-  .pat-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pat-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; max-width: none; }
   .rank { font: 700 22px/1 var(--display); color: var(--stamp); font-variant-numeric: tabular-nums; }
   .badge { font: 600 12px/1 var(--body); color: var(--stamp); border: 1.5px solid currentColor; border-radius: 999px; padding: 4px 9px; }
   .cc { font: 500 11px/1 var(--mono); letter-spacing: .08em; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
+  .tag { font-size: 12px; line-height: 1; color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); border-radius: 4px; padding: 5px 7px; }
+  .star {
+    margin-left: auto; background: none; border: 1px solid var(--line); border-radius: 999px;
+    padding: 5px 10px; font-size: 13px; line-height: 1; cursor: pointer; color: var(--muted);
+  }
+  .star[aria-pressed="true"] { color: var(--stamp); border-color: color-mix(in srgb, var(--stamp) 55%, var(--line)); }
+  .star:disabled { cursor: progress; opacity: .6; }
   .pat h4 { margin: 0; font: 600 16px/1.45 var(--body); text-wrap: balance; }
   .orig { margin: 0; font: 400 12.5px/1.5 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
   .pat-meta { margin: 0; font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 10px; }
@@ -128,6 +148,55 @@
   .pat p.summary { margin: 0; font-size: 14.5px; }
   .claim { margin: 0; padding: 8px 12px; border-left: 2px solid var(--line); font-size: 13.5px; color: var(--ink); }
   .claim span { display: block; font: 500 11.5px/1.6 var(--mono); color: var(--muted); }
+  .detail { border-top: 1px dashed var(--line); margin-top: 6px; padding-top: 12px; display: grid; gap: 6px; }
+  .detail-label { margin: 0; font: 500 12px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .detail h5 { margin: 8px 0 0; font: 600 14.5px/1.5 var(--body); }
+  .detail p { margin: 0; font-size: 14.5px; }
+  .detail ul { margin: 0; padding-left: 1.2em; display: grid; gap: 3px; font-size: 14.5px; }
+
+  details.low { background: var(--surface); border: 1px dashed var(--line); border-radius: 6px; padding: 12px 16px; }
+  details.low summary { cursor: pointer; font-size: 14px; color: var(--muted); }
+  details.low ul { margin: 10px 0 0; padding-left: 1.2em; display: grid; gap: 6px; font-size: 13.5px; }
+  details.low small { color: var(--muted); }
+
+  .starred { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .starred li {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 10px 14px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  }
+  .starred b { font-weight: 600; }
+  .starred .meta { font-size: 12.5px; color: var(--muted); }
+  .starred .star { margin-left: auto; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; display: grid; gap: 4px; }
+  .tile span { font-size: 12.5px; color: var(--muted); }
+  .tile strong { font: 700 28px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+  .tile small { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .trends { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 14px; }
+  .trend:not([data-topic]) { --tone: var(--ink); }
+  .trend { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--tone); border-radius: 6px; padding: 14px 16px; display: grid; gap: 6px; }
+  .trend h3 { margin: 0; font: 600 16px/1.45 var(--body); }
+  .trend p { margin: 0; font-size: 14.5px; }
+  .trend .topic-name { font: 500 11.5px/1 var(--mono); color: var(--tone); }
+  .watch { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 24px; align-items: start; }
+  .barlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .barlist li { display: grid; grid-template-columns: minmax(0, 11em) 1fr auto; align-items: center; gap: 10px; font-size: 13.5px; }
+  .barlist .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .barlist .track { height: 10px; }
+  .barlist .fill { display: block; height: 100%; min-width: 2px; background: var(--bar); border-radius: 0 4px 4px 0; }
+  .barlist .val { font: 500 12.5px/1 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips span { font-size: 13px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+  .chips small { color: var(--muted); font-family: var(--mono); margin-left: 4px; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; min-width: 100%; }
+  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { font: 500 12px/1.4 var(--mono); color: var(--muted); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--tone); margin-right: 6px; }
+  .block { display: grid; gap: 14px; min-width: 0; }
 
   .notice {
     background: var(--surface); border: 1px dashed var(--line); border-radius: 6px;
@@ -139,6 +208,7 @@
 
   @media (max-width: 480px) {
     .topic { padding: 18px 16px 20px; }
+    .barlist li { grid-template-columns: minmax(0, 7em) 1fr auto; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -147,7 +217,12 @@
   <div class="wrap">
     <p class="eyebrow">Patent Radar · 매일 0시</p>
     <h1>이차전지 · ESS · 반도체 브리핑</h1>
-    <nav id="days" class="days" aria-label="브리핑 날짜"></nav>
+    <p id="about" class="about" hidden></p>
+    <nav class="modes" role="tablist" aria-label="보기">
+      <button id="mode-daily" type="button" role="tab" aria-selected="true">일간 브리핑</button>
+      <button id="mode-weekly" type="button" role="tab" aria-selected="false">주간 리포트</button>
+    </nav>
+    <nav id="days" class="days" aria-label="날짜"></nav>
   </div>
 </header>
 
@@ -160,17 +235,26 @@
 
 <script>
   const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
-  const COUNTRY_NAMES = { KR: "한국", US: "미국", CN: "중국" };
-  const state = { docs: [], patents: [], selected: null, status: "loading" };
-
-  function allDays() {
-    const days = new Set([...state.docs, ...state.patents].map((d) => d.day));
-    return [...days].sort().reverse();
-  }
+  const COUNTRY_NAMES = { KR: "한국", US: "미국", CN: "중국", JP: "일본", EP: "유럽", DE: "독일", TW: "대만", GB: "영국", FR: "프랑스" };
+  const REPO = "https://github.com/ChoJiwon00/patent-radar";
+  const state = {
+    source: null, // "db"(claude.ai) | "files"(GitHub Pages)
+    db: null,
+    docs: [], patents: [], weeks: [], stars: new Map(),
+    selected: null, selectedWeek: null,
+    mode: location.hash === "#weekly" ? "weekly" : "daily",
+    status: "loading", generatedAt: null, starError: false,
+  };
 
   function el(tag, props, ...children) {
     const node = Object.assign(document.createElement(tag), props || {});
-    node.append(...children.filter((c) => c !== null && c !== undefined));
+    node.append(...children.filter((c) => c !== null && c !== undefined && c !== false));
+    return node;
+  }
+
+  function topicEl(tag, props, topic, ...children) {
+    const node = el(tag, props, ...children);
+    if (topic) node.dataset.topic = topic;
     return node;
   }
 
@@ -185,41 +269,63 @@
     return `${m}/${d}`;
   }
 
+  function todayKst() {
+    return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+
   function safeUrl(url) {
     return typeof url === "string" && /^https?:\/\//i.test(url) ? url : null;
+  }
+
+  function link(url, text, className) {
+    const href = safeUrl(url);
+    return href
+      ? el("a", { href, target: "_blank", rel: "noopener noreferrer", textContent: text, className: className || "" })
+      : el("span", { textContent: text, className: className || "" });
   }
 
   function notice(title, text) {
     return el("div", { className: "notice" }, el("strong", { textContent: title }), text);
   }
 
-  function renderDays() {
-    const nav = document.getElementById("days");
-    nav.replaceChildren(
-      ...allDays().map((day) => {
-        const button = el("button", { type: "button", textContent: shortDay(day), title: formatDay(day) });
-        button.setAttribute("aria-pressed", String(day === state.selected));
-        button.addEventListener("click", () => {
-          state.selected = day;
-          render();
-        });
-        return button;
-      }),
-    );
+  function allDays() {
+    const days = new Set([...state.docs, ...state.patents].map((d) => d.day));
+    return [...days].sort().reverse();
   }
+
+  // ---------------------------------------------------------------- 날짜 칩, 탭
+
+  function renderNav() {
+    for (const mode of ["daily", "weekly"]) {
+      document.getElementById(`mode-${mode}`).setAttribute("aria-selected", String(state.mode === mode));
+    }
+    const nav = document.getElementById("days");
+    const chips =
+      state.mode === "daily"
+        ? allDays().map((day) => chip(shortDay(day), formatDay(day), day === state.selected, () => (state.selected = day)))
+        : state.weeks.map((w) =>
+            chip(`${shortDay(w.start)}~${shortDay(w.end)}`, `${formatDay(w.start)} ~ ${formatDay(w.end)}`,
+              w.end === state.selectedWeek, () => (state.selectedWeek = w.end)),
+          );
+    nav.replaceChildren(...chips);
+  }
+
+  function chip(label, title, pressed, select) {
+    const button = el("button", { type: "button", textContent: label, title });
+    button.setAttribute("aria-pressed", String(pressed));
+    button.addEventListener("click", () => {
+      select();
+      render();
+    });
+    return button;
+  }
+
+  // ---------------------------------------------------------------- 일간: 뉴스
 
   function renderStory(story, index) {
     const sources = (story.articles || [])
       .filter((a) => safeUrl(a.url))
-      .map((a) =>
-        el("a", {
-          href: safeUrl(a.url),
-          target: "_blank",
-          rel: "noopener noreferrer",
-          textContent: a.source || "기사",
-          title: a.title || "",
-        }),
-      );
+      .map((a) => el("a", { href: safeUrl(a.url), target: "_blank", rel: "noopener noreferrer", textContent: a.source || "기사", title: a.title || "" }));
     return el(
       "li",
       {},
@@ -235,107 +341,75 @@
   }
 
   function renderKeyword(k) {
-    return el(
-      "li",
-      { className: "kw" },
-      el("b", { textContent: k.ko }),
-      el("code", { textContent: k.en }),
-      k.reason ? el("small", { textContent: k.reason }) : null,
-    );
+    return el("li", { className: "kw" }, el("b", { textContent: k.ko }), el("code", { textContent: k.en }),
+      k.reason ? el("small", { textContent: k.reason }) : null);
   }
 
   function renderTopic(topic) {
-    const section = el(
+    return topicEl(
       "section",
       { className: "topic" },
-      el(
-        "header",
-        {},
-        el("h2", { textContent: topic.name }),
-        el("span", { className: "count", textContent: `주요 이야기 ${topic.stories.length}` }),
-      ),
+      topic.name,
+      el("header", {}, el("h2", { textContent: topic.name }), el("span", { className: "count", textContent: `주요 이야기 ${topic.stories.length}` })),
       el("ol", { className: "stories" }, ...topic.stories.map(renderStory)),
-      el(
-        "div",
-        { className: "keywords" },
-        el("h4", { textContent: "특허 검색 키워드" }),
-        el("ul", { className: "kw-list" }, ...(topic.keywords || []).map(renderKeyword)),
-      ),
-    );
-    section.dataset.topic = topic.name;
-    return section;
-  }
-
-  function render() {
-    renderDays();
-    const main = document.getElementById("main");
-
-    if (state.status === "unavailable") {
-      main.replaceChildren(
-        notice("브리핑을 불러올 수 없어요", "claude.ai에 로그인한 상태로 이 페이지를 열어 주세요."),
-      );
-      return;
-    }
-    if (state.status === "error") {
-      main.replaceChildren(notice("브리핑을 불러오지 못했어요", "잠시 뒤 페이지를 새로 고쳐 주세요."));
-      return;
-    }
-    if (state.status === "loading") return;
-
-    const b = state.docs.find((d) => d.day === state.selected);
-    const p = state.patents.find((d) => d.day === state.selected);
-    if (!b && !p) {
-      main.replaceChildren(
-        notice(
-          "아직 저장된 브리핑이 없어요",
-          "매일 0시쯤 Claude가 이차전지·ESS·반도체 뉴스와 특허를 정리해 이곳에 올려요. 바로 보고 싶으면 Claude Code에서 /daily-briefing 이나 /patent-briefing 을 실행하세요.",
-        ),
-      );
-      return;
-    }
-
-    const stamped = b || p;
-    const written = typeof stamped.created_at === "string" ? `${stamped.created_at.slice(11, 16)} 작성` : "";
-    main.replaceChildren(
-      el(
-        "section",
-        { className: "lead" },
-        el(
-          "div",
-          { className: "dateline" },
-          el("span", { className: "stamp", textContent: formatDay(stamped.day) }),
-          written ? el("span", { className: "written", textContent: written }) : null,
-        ),
-        b ? el("p", { className: "overview", textContent: b.overview }) : null,
-      ),
-      p ? renderPatents(p) : null,
-      b ? el("div", { className: "topics" }, ...(b.topics || []).map(renderTopic)) : null,
-      el("p", {
-        className: "foot",
-        textContent:
-          "뉴스 요약은 기사 제목을, 특허 요약은 KIPRIS의 청구항·초록을 바탕으로 AI가 작성했어요. 자세한 내용은 원문 링크에서 확인하세요.",
-      }),
+      el("div", { className: "keywords" }, el("h4", { textContent: "특허 검색 키워드" }),
+        el("ul", { className: "kw-list" }, ...(topic.keywords || []).map(renderKeyword))),
     );
   }
 
-  function renderPatent(item) {
+  // ---------------------------------------------------------------- 일간: 특허
+
+  function starKey(item) {
+    return String(item.key || `${item.country}-${item.number}`).replace(/[^A-Za-z0-9_.~:@+-]/g, "_");
+  }
+
+  function starButton(item, day) {
+    if (state.source !== "db") return null;
+    const key = starKey(item);
+    const on = state.stars.has(key);
+    const button = el("button", { type: "button", className: "star", textContent: on ? "★ 관심" : "☆ 관심", disabled: state.starError });
+    button.setAttribute("aria-pressed", String(on));
+    button.title = on ? "관심 특허에서 빼기" : "관심 특허로 추적하기 (등록 여부를 매주 확인해요)";
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        const ref = state.db.doc(`stars/${key}`);
+        if (state.stars.has(key)) {
+          await ref.delete();
+        } else {
+          await ref.set({
+            key, country: item.country, number: item.number, title: item.title, title_ko: item.title_ko || null,
+            url: item.url || null, applicant: item.applicant || null, summary_ko: item.summary_ko || null,
+            day: day || null, starred_at: new Date().toISOString(),
+          });
+        }
+      } catch (e) {
+        state.starError = true;
+        render();
+      }
+    });
+    return button;
+  }
+
+  function renderPatent(item, day) {
     const card = el("li", { className: item.rank ? "pat hot" : "pat" });
     const top = el("div", { className: "pat-top" });
     if (item.rank) {
-      top.append(el("span", { className: "rank", textContent: `${item.rank}위` }));
-      top.append(el("span", { className: "badge", textContent: "🔥 주목" }));
+      top.append(el("span", { className: "rank", textContent: `${item.rank}위` }), el("span", { className: "badge", textContent: "🔥 주목" }));
     }
     top.append(el("span", { className: "cc", textContent: item.country }));
+    if (item.company) top.append(el("span", { className: "tag", textContent: `관심 회사 · ${item.company}` }));
+    if (item.interest) top.append(el("span", { className: "tag", textContent: "관심 키워드" }));
+    if (item.family && item.family.length > 1) {
+      top.append(el("span", { className: "tag", textContent: `🌐 ${item.family.map((c) => COUNTRY_NAMES[c] || c).join("·")} 출원` }));
+    }
+    if (item.status && item.status !== "공개") top.append(el("span", { className: "tag", textContent: item.status }));
+    const star = starButton(item, day);
+    if (star) top.append(star);
     card.append(top, el("h4", { textContent: item.title_ko || item.title }));
     if (item.title_ko && item.title_ko !== item.title) card.append(el("p", { className: "orig", textContent: item.title }));
 
-    const meta = el("p", { className: "pat-meta" });
-    const url = safeUrl(item.url);
-    meta.append(
-      url
-        ? el("a", { href: url, target: "_blank", rel: "noopener noreferrer", textContent: item.number })
-        : el("span", { textContent: item.number }),
-    );
+    const meta = el("p", { className: "pat-meta" }, link(item.url, item.number));
     if (item.applicant) meta.append(el("span", { textContent: item.applicant }));
     if (item.published_at) meta.append(el("span", { textContent: `공개 ${item.published_at}` }));
     meta.append(el("span", { textContent: `키워드 · ${item.keyword}` }));
@@ -346,20 +420,12 @@
     }
     if (item.summary_ko) card.append(el("p", { className: "summary", textContent: item.summary_ko }));
     if (item.key_claim_ko) {
-      card.append(
-        el(
-          "blockquote",
-          { className: "claim" },
-          el("span", { textContent: item.has_claims ? "【청구항 1】 핵심" : "핵심 내용 (초록 기준)" }),
-          item.key_claim_ko,
-        ),
-      );
+      card.append(el("blockquote", { className: "claim" },
+        el("span", { textContent: item.has_claims ? "【청구항 1】 핵심" : "핵심 내용 (초록 기준)" }), item.key_claim_ko));
     }
     if (item.detail && item.detail.length) {
       const box = el("div", { className: "detail" }, el("p", { className: "detail-label", textContent: "자세한 설명" }));
-      for (const section of item.detail) {
-        box.append(el("h5", { textContent: section.heading }), ...renderBody(section.body));
-      }
+      for (const section of item.detail) box.append(el("h5", { textContent: section.heading }), ...renderBody(section.body));
       card.append(box);
     }
     return card;
@@ -389,57 +455,237 @@
   function renderPatents(p) {
     const spotlight = p.spotlight || [];
     const items = p.items || [];
-    const section = el(
-      "section",
-      { className: "patents" },
-      el(
-        "header",
-        {},
-        el("h2", { textContent: "특허 브리핑" }),
-        el("span", { className: "count", textContent: `주목 ${spotlight.length} · 새 특허 ${items.length}` }),
-      ),
-    );
+    const low = p.low || [];
+    const section = el("section", { className: "patents" },
+      el("header", {}, el("h2", { textContent: "특허 브리핑" }),
+        el("span", { className: "count", textContent: `주목 ${spotlight.length} · 새 특허 ${items.length}` })));
     if (spotlight.length) {
-      section.append(el("h3", { textContent: "🔥 주목 특허 순위" }), el("ol", { className: "pat-list" }, ...spotlight.map(renderPatent)));
+      section.append(el("h3", { textContent: "🔥 주목 특허 순위" }), el("ol", { className: "pat-list" }, ...spotlight.map((i) => renderPatent(i, p.day))));
     }
     for (const cc of ["KR", "US", "CN"]) {
       const group = items.filter((i) => i.country === cc);
       if (group.length) {
-        section.append(el("h3", { textContent: `${COUNTRY_NAMES[cc]} 새 특허` }), el("ul", { className: "pat-list" }, ...group.map(renderPatent)));
+        section.append(el("h3", { textContent: `${COUNTRY_NAMES[cc]} 새 특허` }), el("ul", { className: "pat-list" }, ...group.map((i) => renderPatent(i, p.day))));
       }
+    }
+    if (low.length) {
+      section.append(el("details", { className: "low" },
+        el("summary", { textContent: `관련도가 낮아 접어 둔 특허 ${low.length}건` }),
+        el("ul", {}, ...low.map((i) => el("li", {}, link(i.url, i.title_ko || i.title), " ",
+          el("small", { textContent: `${COUNTRY_NAMES[i.country] || i.country} · ${i.relevance_note || ""}` }))))));
     }
     return section;
   }
 
-  async function start() {
-    const db = window.claude && window.claude.use ? await window.claude.use("db") : null;
-    if (!db) {
-      state.status = "unavailable";
-      render();
+  function renderStarred() {
+    if (state.source !== "db" || !state.stars.size) return null;
+    const items = [...state.stars.values()].sort((a, b) => String(b.starred_at).localeCompare(String(a.starred_at)));
+    return el("section", { className: "block" },
+      el("header", {}, el("h2", { textContent: "★ 관심 특허" }), el("span", { className: "count", textContent: `${items.length}건 · 등록 여부를 매주 확인해요` })),
+      el("ul", { className: "starred" }, ...items.map((s) =>
+        el("li", {}, el("b", { textContent: s.title_ko || s.title }), link(s.url, s.number, "meta"),
+          s.applicant ? el("span", { className: "meta", textContent: s.applicant }) : null, starButton(s, s.day)))));
+  }
+
+  function renderDaily(main) {
+    const b = state.docs.find((d) => d.day === state.selected);
+    const p = state.patents.find((d) => d.day === state.selected);
+    const latest = allDays()[0];
+    const late = state.source === "db" && latest && latest < todayKst()
+      ? el("p", { className: "alert", textContent: `오늘 브리핑이 아직 없어요. 마지막 브리핑은 ${formatDay(latest)}이에요. 매일 0시쯤 만들어지는데, 그때 컴퓨터가 꺼져 있었다면 Claude 앱을 열 때 실행돼요.` })
+      : null;
+    if (!b && !p) {
+      main.replaceChildren(...[late, renderStarred(), notice("아직 저장된 브리핑이 없어요",
+        "매일 0시쯤 Claude가 이차전지·ESS·반도체 뉴스와 특허를 정리해 이곳에 올려요.")].filter(Boolean));
       return;
     }
+    const stamped = b || p;
+    const written = typeof stamped.created_at === "string" ? `${stamped.created_at.slice(11, 16)} 작성` : "";
+    main.replaceChildren(...[
+      late,
+      el("section", { className: "lead" },
+        el("div", { className: "dateline" }, el("span", { className: "stamp", textContent: formatDay(stamped.day) }),
+          written ? el("span", { className: "written", textContent: written }) : null),
+        b ? el("p", { className: "overview", textContent: b.overview }) : null),
+      renderStarred(),
+      p ? renderPatents(p) : null,
+      b ? el("div", { className: "topics" }, ...(b.topics || []).map(renderTopic)) : null,
+      el("p", { className: "foot", textContent: "뉴스 요약은 기사 제목을, 특허 요약은 KIPRIS의 청구항·초록을 바탕으로 AI가 작성했어요. 자세한 내용은 원문 링크에서 확인하세요." }),
+    ].filter(Boolean));
+  }
+
+  // ---------------------------------------------------------------- 주간
+
+  function tile(label, value, note) {
+    return el("div", { className: "tile" }, el("span", { textContent: label }), el("strong", { textContent: String(value) }),
+      note ? el("small", { textContent: note }) : null);
+  }
+
+  function barList(rows) {
+    const max = Math.max(1, ...rows.map((r) => r.value));
+    return el("ul", { className: "barlist" }, ...rows.map((r) => {
+      const fill = el("span", { className: "fill" });
+      fill.style.width = `${(r.value / max) * 100}%`;
+      const li = el("li", {}, el("span", { className: "name", textContent: r.label }), el("span", { className: "track" }, fill),
+        el("span", { className: "val", textContent: String(r.value) }));
+      li.title = `${r.label}: ${r.value}건`;
+      return li;
+    }));
+  }
+
+  function renderWeekly(main) {
+    const w = state.weeks.find((x) => x.end === state.selectedWeek);
+    if (!w) {
+      main.replaceChildren(notice("아직 주간 리포트가 없어요", "매주 월요일 0시 실행 때 지난 일주일을 정리한 리포트가 만들어져요."));
+      return;
+    }
+    const s = w.stats;
+    const c = w.commentary;
+    const p = s.patents;
+    const blocks = [
+      el("section", { className: "lead" },
+        el("div", { className: "dateline" }, el("span", { className: "stamp", textContent: `${formatDay(s.start)} ~ ${formatDay(s.end)}` }),
+          el("span", { className: "written", textContent: "주간 트렌드 리포트" })),
+        el("p", { className: "overview", textContent: c.summary })),
+      el("div", { className: "tiles" },
+        tile("뉴스 기사", s.news.total, `브리핑 ${s.briefings.length}일`),
+        tile("새 특허", p.total, p.low ? `관련 낮음 ${p.low}건 제외` : null),
+        tile("🔥 주목 특허", p.spotlight.length),
+        tile("나라별 특허", p.by_country.map((b) => b.count).join(" · "), p.by_country.map((b) => b.name).join(" · "))),
+      el("section", { className: "block" }, el("header", {}, el("h2", { textContent: "이번 주 흐름" })),
+        el("div", { className: "trends" }, ...c.trends.map((t) => topicEl("article", { className: "trend" }, t.topic,
+          t.topic ? el("span", { className: "topic-name", textContent: t.topic }) : null,
+          el("h3", { textContent: t.title }), el("p", { textContent: t.body })))),
+        el("h3", { textContent: "다음 주에 지켜볼 것" }), el("ul", { className: "watch" }, ...c.watch.map((x) => el("li", { textContent: x })))),
+    ];
+    if (p.spotlight.length) {
+      blocks.push(el("section", { className: "block" }, el("header", {}, el("h2", { textContent: "🔥 이번 주 주목 특허" })),
+        el("ol", { className: "starred" }, ...p.spotlight.map((x) => el("li", {},
+          el("span", { className: "rank", textContent: `${x.rank}위` }), el("b", { textContent: x.title }), link(x.url, x.number, "meta"),
+          el("span", { className: "meta", textContent: `${x.applicant || ""} · ${x.score}점` }))))));
+    }
+    const charts = [];
+    if (p.top_applicants.length) {
+      charts.push(el("div", { className: "block" }, el("h3", { textContent: "특허를 많이 낸 출원인" }),
+        barList(p.top_applicants.map((a) => ({ label: a.name, value: a.count })))));
+    }
+    if (p.top_ipc.length) {
+      charts.push(el("div", { className: "block" }, el("h3", { textContent: "많이 나온 기술 분류 (IPC)" }),
+        barList(p.top_ipc.map((i) => ({ label: `${i.code} ${i.label}`, value: i.count })))));
+    }
+    if (charts.length) blocks.push(el("section", { className: "two" }, ...charts));
+    if (s.keywords.length) {
+      blocks.push(el("section", { className: "block" }, el("h3", { textContent: "자주 나온 기술 키워드" }),
+        el("div", { className: "chips" }, ...s.keywords.map((k) => topicEl("span", {}, k.topic, el("span", { className: "dot" }), k.ko, el("small", { textContent: `${k.days}일` }))))));
+    }
+    blocks.push(el("section", { className: "block" }, el("h3", { textContent: "주제별 뉴스 기사 수" }),
+      el("div", { className: "scroll" }, el("table", {},
+        el("thead", {}, el("tr", {}, el("th", { textContent: "주제" }), ...s.days.map((d) => el("th", { textContent: shortDay(d) })), el("th", { textContent: "합계" }))),
+        el("tbody", {}, ...s.news.topics.map((t) => el("tr", {},
+          topicEl("td", {}, t.name, el("span", { className: "dot" }), t.name),
+          ...t.by_day.map((n) => el("td", { textContent: String(n) })), el("td", { textContent: String(t.total) }))))))));
+    if (s.stars && s.stars.length) {
+      blocks.push(el("section", { className: "block" }, el("h3", { textContent: "★ 관심 특허 진행 상태" }),
+        el("ul", { className: "starred" }, ...s.stars.map((x) => el("li", {}, el("b", { textContent: x.title_ko || x.title || x.key }),
+          link(x.url, x.number || x.key, "meta"), el("span", { className: "meta", textContent: `${x.status || "-"}${x.changed_this_week ? " · 이번 주 바뀜" : ""}` }))))));
+    }
+    blocks.push(el("p", { className: "foot", textContent: "분석은 Claude가 일주일치 뉴스·특허 브리핑을 바탕으로 작성했어요." }));
+    main.replaceChildren(...blocks);
+  }
+
+  // ---------------------------------------------------------------- 공통
+
+  function render() {
+    renderNav();
+    const main = document.getElementById("main");
+    if (state.status === "unavailable") {
+      main.replaceChildren(notice("브리핑을 불러올 수 없어요", "claude.ai에 로그인한 상태로 열거나, GitHub Pages 주소로 열어 주세요."));
+      return;
+    }
+    if (state.status === "error") {
+      main.replaceChildren(notice("브리핑을 불러오지 못했어요", "잠시 뒤 페이지를 새로 고쳐 주세요."));
+      return;
+    }
+    if (state.status === "loading") return;
+    if (state.mode === "weekly") renderWeekly(main);
+    else renderDaily(main);
+  }
+
+  function settle() {
+    const days = allDays();
+    if (!days.includes(state.selected)) state.selected = days[0] || null;
+    if (!state.weeks.some((w) => w.end === state.selectedWeek)) state.selectedWeek = state.weeks[0] ? state.weeks[0].end : null;
+    state.status = "ready";
+    render();
+  }
+
+  for (const mode of ["daily", "weekly"]) {
+    document.getElementById(`mode-${mode}`).addEventListener("click", () => {
+      state.mode = mode;
+      history.replaceState(null, "", mode === "weekly" ? "#weekly" : location.pathname + location.search);
+      render();
+    });
+  }
+
+  async function startDb(db) {
+    state.source = "db";
+    state.db = db;
     const loaded = new Set();
-    const listen = (collection, field) =>
-      db.collection(collection)
-        .orderBy("day", "desc")
-        .limit(60)
-        .onSnapshot(
-          (snap) => {
-            state[field] = snap.docs.filter((d) => d.exists).map((d) => d.data());
+    const need = 4;
+    const listen = (collection, field, orderField) =>
+      db.collection(collection).orderBy(orderField, "desc").limit(60).onSnapshot(
+        (snap) => {
+          const docs = snap.docs.filter((d) => d.exists);
+          if (field === "stars") state.stars = new Map(docs.map((d) => [d.id, d.data()]));
+          else state[field] = docs.map((d) => d.data());
+          loaded.add(field);
+          if (loaded.size >= need) settle();
+        },
+        () => {
+          if (field === "stars") {
+            state.starError = true;
             loaded.add(field);
-            if (loaded.size < 2) return;
-            state.status = "ready";
-            const days = allDays();
-            if (!days.includes(state.selected)) state.selected = days.length ? days[0] : null;
-            render();
-          },
-          () => {
-            state.status = "error";
-            render();
-          },
-        );
-    listen("briefings", "docs");
-    listen("patent_briefings", "patents");
+            if (loaded.size >= need) settle();
+            return;
+          }
+          state.status = "error";
+          render();
+        },
+      );
+    listen("briefings", "docs", "day");
+    listen("patent_briefings", "patents", "day");
+    listen("weekly_reports", "weeks", "end");
+    listen("stars", "stars", "starred_at");
+  }
+
+  async function startFiles() {
+    const get = (path) => fetch(path).then((r) => {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json();
+    });
+    const index = await get("data/index.json");
+    const days = await Promise.all(index.days.map((d) => get(`data/days/${d}.json`)));
+    state.source = "files";
+    state.docs = days.map((d) => d.briefing).filter(Boolean);
+    state.patents = days.map((d) => d.patents).filter(Boolean);
+    state.weeks = await Promise.all(index.weeks.map((w) => get(`data/weeks/${w}.json`)));
+    const about = document.getElementById("about");
+    about.append("Claude Code가 매일 0시에 뉴스를 읽고 KIPRIS에서 한·미·중 특허를 찾아 정리하는 개인 특허 레이더예요. ",
+      `마지막 업데이트 ${index.generated_at.slice(0, 16).replace("T", " ")} · `,
+      el("a", { href: REPO, target: "_blank", rel: "noopener noreferrer", textContent: "GitHub에서 코드 보기 ↗" }));
+    about.hidden = false;
+    settle();
+  }
+
+  async function start() {
+    const db = window.claude && window.claude.use ? await window.claude.use("db") : null;
+    if (db) return startDb(db);
+    try {
+      await startFiles();
+    } catch (e) {
+      state.status = "unavailable";
+      render();
+    }
   }
 
   start();

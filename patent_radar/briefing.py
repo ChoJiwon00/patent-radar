@@ -85,13 +85,23 @@ def validate(data, known_article_ids: set[int]) -> dict:
         for j, k in enumerate(_list(t.get("keywords"), f"{where}.keywords")):
             kw = f"{where}.keywords[{j}]"
             k = _obj(k, kw)
-            keywords.append(
-                {
-                    "ko": _text(k.get("ko"), f"{kw}.ko"),
-                    "en": _text(k.get("en"), f"{kw}.en"),
-                    "reason": _text(k.get("reason"), f"{kw}.reason"),
-                }
-            )
+            entry = {
+                "ko": _text(k.get("ko"), f"{kw}.ko"),
+                "en": _text(k.get("en"), f"{kw}.en"),
+                "reason": _text(k.get("reason"), f"{kw}.reason"),
+            }
+            # 선택: 한국 특허가 0건일 때 쓸 다른 표현, 키워드가 나온 이야기 번호(1부터)
+            alt = k.get("alt", [])
+            if not isinstance(alt, list) or len(alt) > 3 or not all(isinstance(a, str) and a.strip() for a in alt):
+                raise BriefingError(f"{kw}.alt는 다른 한국어 표현 문자열 3개 이하의 배열이어야 합니다.")
+            if alt:
+                entry["alt"] = [a.strip() for a in alt]
+            story = k.get("story")
+            if story is not None:
+                if not isinstance(story, int) or not 1 <= story <= len(stories):
+                    raise BriefingError(f"{kw}.story는 1부터 {len(stories)} 사이의 이야기 번호여야 합니다.")
+                entry["story"] = story
+            keywords.append(entry)
 
         topics.append({"name": _text(t.get("name"), f"{where}.name"), "stories": stories, "keywords": keywords})
 
