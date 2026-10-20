@@ -167,8 +167,9 @@ def parse_kr_claims(root: ET.Element) -> tuple[str | None, int]:
 
 def parse_foreign_claims(root: ET.Element) -> tuple[str | None, int]:
     text = "\n".join(t for t in ((c.text or "").strip() for c in root.iter("claimText")) if t)
-    # 청구항은 "1. ...", "2. ..."처럼 번호로 시작한다.
-    count = len(re.findall(r"(?:^|\s)\d{1,3}\.\s", text))
+    # 청구항은 "1. ...", "    2. ..."처럼 공백 여러 칸 뒤 번호로 시작한다.
+    # "according to claim 1. " 같은 문장 끝 번호를 세지 않으려고 공백이 두 칸 이상인 것만 센다.
+    count = len(re.findall(r"(?:^|\s{2,})\d{1,3}\.\s", text))
     return (text or None), count
 
 
@@ -436,9 +437,9 @@ def for_claude(conn: sqlite3.Connection, day: date) -> dict:
             "id": p["id"], "country": p["country"], "number": p["number"], "title": p["title"],
             "applicant": p["applicant"], "published_at": p["published_at"], "keyword": info["keyword"],
             "rank": info["rank"], "score": info["score"], "reasons": info["reasons"], "new": info["new"],
-            "needs_summary": not (p["title_ko"] and p["summary_ko"] and p["key_claim_ko"]),
+            "needs_summary": not (p["title_ko"] and p["summary_ko"] and p["key_claim_ko"] and p["detail_ko"]),
             "claim_count": p["claim_count"],
-            "abstract": _clip(p["abstract"], 1200), "claims": _clip(p["claims"], 2500),
+            "abstract": _clip(p["abstract"], 3000), "claims": _clip(p["claims"], 8000),
         })
     return {"day": day.isoformat(), "keywords": content["keywords"], "warnings": content["warnings"], "items": items}
 
@@ -465,10 +466,27 @@ def save_summaries(conn: sqlite3.Connection, data, day: date) -> int:
             if not isinstance(value, str) or not value.strip():
                 raise SummaryError(f"{where}.{key}는 비어 있지 않은 문자열이어야 합니다.")
             fields.append(value.strip())
+        fields.append(json.dumps(_detail(item.get("detail_ko"), f"{where}.detail_ko"), ensure_ascii=False))
         updates.append((*fields, item["id"]))
-    conn.executemany("UPDATE patents SET title_ko = ?, summary_ko = ?, key_claim_ko = ? WHERE id = ?", updates)
+    conn.executemany(
+        "UPDATE patents SET title_ko = ?, summary_ko = ?, key_claim_ko = ?, detail_ko = ? WHERE id = ?", updates)
     conn.commit()
     return len(updates)
+
+
+def _detail(value, where: str) -> list[dict]:
+    """자세한 설명: 꼭지 3~8개, 꼭지마다 제목과 본문. 본문의 "- "로 시작하는 줄은 목록으로 보여준다."""
+    if not isinstance(value, list) or not 3 <= len(value) <= 8:
+        raise SummaryError(f'{where}는 [{{"heading": ..., "body": ...}}] 꼭지 3~8개짜리 배열이어야 합니다.')
+    sections = []
+    for n, s in enumerate(value):
+        if not isinstance(s, dict):
+            raise SummaryError(f"{where}[{n}]는 JSON 객체여야 합니다.")
+        heading, body = s.get("heading"), s.get("body")
+        if not isinstance(heading, str) or not heading.strip() or not isinstance(body, str) or not body.strip():
+            raise SummaryError(f"{where}[{n}]의 heading과 body는 비어 있지 않은 문자열이어야 합니다.")
+        sections.append({"heading": heading.strip(), "body": body.strip()})
+    return sections
 
 
 def for_page(conn: sqlite3.Connection, day: date) -> dict | None:
@@ -482,6 +500,7 @@ def for_page(conn: sqlite3.Connection, day: date) -> dict | None:
             "country": p["country"], "number": p["number"], "title": p["title"], "title_ko": p["title_ko"],
             "applicant": p["applicant"], "published_at": p["published_at"], "url": p["url"],
             "summary_ko": p["summary_ko"], "key_claim_ko": p["key_claim_ko"], "keyword": info["keyword"],
+            "detail": json.loads(p["detail_ko"]) if p["detail_ko"] else [],
             "rank": info["rank"], "score": info["score"], "reasons": info["reasons"], "new": info["new"],
             "has_claims": bool(p["claims"]), "claim_count": p["claim_count"],
         }
@@ -515,6 +534,8 @@ def report_markdown(page: dict) -> str:
         if i["key_claim_ko"]:
             label = "핵심 청구항" if i["has_claims"] else "핵심 내용 (청구항 원문 없음, 초록 기준)"
             out += [f"> **{label}**: {i['key_claim_ko']}", ""]
+        for section in i["detail"]:
+            out += [f"**{section['heading']}**", "", section["body"], ""]
         return out
 
     if page["spotlight"]:

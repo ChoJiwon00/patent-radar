@@ -7,6 +7,7 @@
     python -m patent_radar briefing export FILE  claude.ai 브리핑 페이지에 올릴 JSON을 만든다
     python -m patent_radar patents search        오늘 브리핑 키워드로 한·미·중 특허를 찾는다
     python -m patent_radar patents search --keyword "전고체 전해질|solid electrolyte"
+    python -m patent_radar patents list          검색 없이 그날 특허 목록을 다시 파일로 만든다
     python -m patent_radar patents save-summaries FILE   AI가 쓴 한국어 요약을 저장한다
     python -m patent_radar patents export FILE   claude.ai 브리핑 페이지에 올릴 JSON을 만든다
     python -m patent_radar patents report        GitHub에 올릴 보고서(reports/날짜.md)를 만든다
@@ -141,6 +142,17 @@ def cmd_patents_search(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_patents_list(args: argparse.Namespace) -> int:
+    day = _day(args.day)
+    with db.session() as conn:
+        result = patents.for_claude(conn, day)
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.out).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    pending = sum(1 for i in result["items"] if i["needs_summary"])
+    print(f"{day} 특허 {len(result['items'])}건 (요약이 필요한 특허 {pending}건)을 {args.out}에 저장했어요")
+    return 0
+
+
 def cmd_patents_save(args: argparse.Namespace) -> int:
     try:
         data = json.loads(Path(args.file).read_text(encoding="utf-8"))
@@ -239,6 +251,10 @@ def main() -> int:
     p_search.add_argument("--day", help="YYYY-MM-DD (기본: 오늘)")
     p_search.add_argument("--out", default="data/patents-today.json", help="스킬이 읽을 결과 파일")
     p_search.set_defaults(func=cmd_patents_search)
+    p_list = pat_sub.add_parser("list", help="검색하지 않고 그날 특허 브리핑을 스킬이 읽는 파일로 다시 만들기")
+    p_list.add_argument("--day", help="YYYY-MM-DD (기본: 오늘)")
+    p_list.add_argument("--out", default="data/patents-today.json")
+    p_list.set_defaults(func=cmd_patents_list)
     p_psave = pat_sub.add_parser("save-summaries", help="AI가 쓴 한국어 요약 저장")
     p_psave.add_argument("file")
     p_psave.add_argument("--day", help="YYYY-MM-DD (기본: 오늘)")

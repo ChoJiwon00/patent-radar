@@ -59,8 +59,9 @@ def test_error_code_raises_without_details():
 
 
 def test_foreign_claim_count():
-    root = ET.fromstring("<r><claimText>1. A battery. 2. The battery of claim 1. 3. The battery of claim 2.</claimText></r>")
-    assert patents.parse_foreign_claims(root)[1] == 3
+    root = ET.fromstring("<r><claimText>1. A film.    2. The film of claim 1.   3. A film made by claim 1.   "
+                         "4. An electrode using the film of claim 3.</claimText></r>")
+    assert patents.parse_foreign_claims(root)[1] == 4
 
 
 def found(country, key, published="2026-10-01", priority=None):
@@ -145,18 +146,40 @@ def test_save_summaries_and_report(conn):
     content = patents.collect(conn, client, [A], date(2026, 10, 21), SETTINGS)
     pid = content["items"][0]["patent_id"]
 
-    with pytest.raises(patents.SummaryError, match="999"):
-        patents.save_summaries(conn, {"items": [{"id": 999, "title_ko": "a", "summary_ko": "b", "key_claim_ko": "c"}]},
-                               date(2026, 10, 21))
-    patents.save_summaries(conn, {"items": [{"id": pid, "title_ko": "전고체 슬러리", "summary_ko": "요약",
-                                             "key_claim_ko": "핵심"}]}, date(2026, 10, 21))
+    detail = [{"heading": "어떤 발명인가요", "body": "슬러리에 관한 발명"},
+              {"heading": "구성·방법 자세히", "body": "- 황화물 전해질\n- 바인더"},
+              {"heading": "용어 풀이", "body": "- 슬러리: 걸쭉한 혼합물"}]
+    summary = {"title_ko": "전고체 슬러리", "summary_ko": "요약", "key_claim_ko": "핵심", "detail_ko": detail}
 
+    with pytest.raises(patents.SummaryError, match="999"):
+        patents.save_summaries(conn, {"items": [{"id": 999, **summary}]}, date(2026, 10, 21))
+    with pytest.raises(patents.SummaryError, match="detail_ko"):
+        patents.save_summaries(conn, {"items": [{"id": pid, **summary, "detail_ko": detail[:1]}]}, date(2026, 10, 21))
+    patents.save_summaries(conn, {"items": [{"id": pid, **summary}]}, date(2026, 10, 21))
+
+    assert patents.for_claude(conn, date(2026, 10, 21))["items"][0]["needs_summary"] is False
     page = patents.for_page(conn, date(2026, 10, 21))
+    assert page["items"][0]["detail"][1]["body"] == "- 황화물 전해질\n- 바인더"
     text = patents.report_markdown(page)
     assert "# 2026-10-21 특허 브리핑" in text
     assert "## 한국 새 특허" in text
     assert "### 전고체 슬러리" in text
     assert "> **핵심 청구항**: 핵심" in text
+    assert "**구성·방법 자세히**\n\n- 황화물 전해질" in text
+
+
+def test_old_database_gets_new_column(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    # detail_ko 칸이 생기기 전의 표 구조
+    old.executescript("\n".join(line for line in db.SCHEMA.splitlines() if "detail_ko" not in line))
+    old.close()
+
+    conn = db.connect(path)
+
+    assert "detail_ko" in {r["name"] for r in conn.execute("PRAGMA table_info(patents)")}
 
 
 def test_keywords_from_briefing_alternate_topics(conn):

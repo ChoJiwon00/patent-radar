@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS patents (
     title_ko        TEXT,                      -- 아래 셋은 AI가 쓴 한국어
     summary_ko      TEXT,
     key_claim_ko    TEXT,
+    detail_ko       TEXT,                      -- AI가 쓴 자세한 설명. JSON [{"heading": ..., "body": ...}]
     first_shown_day TEXT,                      -- 처음 브리핑에 넣은 날. 다음 날부터는 새 특허 목록에 다시 넣지 않는다
     UNIQUE (country, doc_key)
 );
@@ -78,12 +79,19 @@ CREATE TABLE IF NOT EXISTS api_usage (
 """
 
 
+# 예전에 만든 DB에 새로 생긴 칸을 더한다. CREATE TABLE IF NOT EXISTS는 이미 있는 표를 바꾸지 않기 때문이다.
+NEW_COLUMNS = [("patents", "detail_ko", "TEXT")]
+
+
 def connect(path: Path | str = DB_PATH) -> sqlite3.Connection:
     if str(path) != ":memory:":
         Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    for table, column, kind in NEW_COLUMNS:
+        if column not in {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
     return conn
 
 
