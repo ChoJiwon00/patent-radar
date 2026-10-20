@@ -45,5 +45,24 @@ def load_news_settings(path: Path = TOPICS_PATH) -> NewsSettings:
     )
 
 
+@dataclass(frozen=True)
+class PatentSettings:
+    keywords_per_day: int = 6
+    per_search: int = 1
+    scan_per_search: int = 10
+    recent_years: int = 3
+    hot_threshold: int = 5
+    hot_window_days: int = 7
+    spotlight_size: int = 5
+    monthly_call_limit: int = 950
+
+
+def load_patent_settings(path: Path = TOPICS_PATH) -> PatentSettings:
+    with open(path, "rb") as f:
+        raw = tomllib.load(f).get("patents", {})
+    defaults = PatentSettings()
+    return PatentSettings(**{k: int(raw.get(k, getattr(defaults, k))) for k in defaults.__dataclass_fields__})
+
+
 def kipris_api_key() -> str | None:
     return os.getenv("KIPRIS_API_KEY") or None

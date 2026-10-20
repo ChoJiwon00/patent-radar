@@ -10,6 +10,24 @@ max_per_query = 30
 # 광고·스팸 출처. 이 이름의 언론사 기사는 저장하지 않아요.
 exclude_sources = ["Calgary Roughnecks"]
 
+[patents]
+# 하루에 특허를 찾을 키워드 수 (브리핑 키워드에서 주제별로 번갈아 고름)
+keywords_per_day = 6
+# 키워드·나라마다 브리핑에 넣을 새 특허 수
+per_search = 1
+# 검색 결과에서 살펴볼 개수 (주목도 계산에 씀)
+scan_per_search = 10
+# 최근 몇 년 안에 공개된 특허만 보여줄지
+recent_years = 3
+# 주목도 점수가 이 값 이상이면 🔥 주목 특허 (점수 계산은 README 참고)
+hot_threshold = 5
+# 최근 며칠 동안의 검색 결과로 주목도를 계산할지. 이 기간 동안 주목 특허는 매일 맨 위에 다시 나와요.
+hot_window_days = 7
+# 맨 위 '주목 특허 순위'에 보여줄 최대 개수
+spotlight_size = 5
+# 서비스(국내/해외)별 한 달 호출 상한. KIPRIS 무료 한도는 1,000회예요.
+monthly_call_limit = 950
+
 [[topics]]
 name = "이차전지"
 queries = ["이차전지", "전고체 배터리", "양극재 OR 음극재"]

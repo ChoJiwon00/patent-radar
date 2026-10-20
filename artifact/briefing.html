@@ -97,6 +97,30 @@
   .kw code { font: 400 13px/1.5 var(--mono); color: var(--tone); overflow-wrap: anywhere; }
   .kw small { font-size: 12.5px; color: var(--muted); }
 
+  .patents { display: grid; gap: 18px; min-width: 0; }
+  .patents > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+  .patents h2 { margin: 0; font: 700 24px/1.3 var(--display); }
+  .patents .count { font: 400 12px/1 var(--mono); color: var(--muted); }
+  .patents h3 { margin: 6px 0 0; font: 500 12px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .pat-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 14px; }
+  .pat {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+    padding: 16px 18px; display: grid; gap: 8px; min-width: 0; align-content: start;
+  }
+  .pat.hot { border-color: color-mix(in srgb, var(--stamp) 55%, var(--line)); background: color-mix(in srgb, var(--stamp) 5%, var(--surface)); }
+  .pat-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .rank { font: 700 22px/1 var(--display); color: var(--stamp); font-variant-numeric: tabular-nums; }
+  .badge { font: 600 12px/1 var(--body); color: var(--stamp); border: 1.5px solid currentColor; border-radius: 999px; padding: 4px 9px; }
+  .cc { font: 500 11px/1 var(--mono); letter-spacing: .08em; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
+  .pat h4 { margin: 0; font: 600 16px/1.45 var(--body); text-wrap: balance; }
+  .orig { margin: 0; font: 400 12.5px/1.5 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  .pat-meta { margin: 0; font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 10px; }
+  .pat-meta a { color: var(--muted); text-underline-offset: 3px; }
+  .reasons { margin: 0; font-size: 12.5px; color: var(--stamp); }
+  .pat p.summary { margin: 0; font-size: 14.5px; }
+  .claim { margin: 0; padding: 8px 12px; border-left: 2px solid var(--line); font-size: 13.5px; color: var(--ink); }
+  .claim span { display: block; font: 500 11.5px/1.6 var(--mono); color: var(--muted); }
+
   .notice {
     background: var(--surface); border: 1px dashed var(--line); border-radius: 6px;
     padding: 28px 24px; color: var(--muted); max-width: 72ch;
@@ -113,7 +137,7 @@
 
 <header class="masthead">
   <div class="wrap">
-    <p class="eyebrow">Patent Radar · 매일 오전 9시</p>
+    <p class="eyebrow">Patent Radar · 매일 0시</p>
     <h1>이차전지 · 반도체 브리핑</h1>
     <nav id="days" class="days" aria-label="브리핑 날짜"></nav>
   </div>
@@ -122,13 +146,19 @@
 <main class="wrap" id="main">
   <div class="notice">
     <strong>브리핑을 불러오는 중이에요</strong>
-    매일 오전 9시쯤 그날의 뉴스 브리핑이 이곳에 쌓여요.
+    매일 0시쯤 뉴스와 특허 브리핑이 이곳에 쌓여요.
   </div>
 </main>
 
 <script>
   const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
-  const state = { docs: [], selected: null, status: "loading" };
+  const COUNTRY_NAMES = { KR: "한국", US: "미국", CN: "중국" };
+  const state = { docs: [], patents: [], selected: null, status: "loading" };
+
+  function allDays() {
+    const days = new Set([...state.docs, ...state.patents].map((d) => d.day));
+    return [...days].sort().reverse();
+  }
 
   function el(tag, props, ...children) {
     const node = Object.assign(document.createElement(tag), props || {});
@@ -158,11 +188,11 @@
   function renderDays() {
     const nav = document.getElementById("days");
     nav.replaceChildren(
-      ...state.docs.map((b) => {
-        const button = el("button", { type: "button", textContent: shortDay(b.day), title: formatDay(b.day) });
-        button.setAttribute("aria-pressed", String(b.day === state.selected));
+      ...allDays().map((day) => {
+        const button = el("button", { type: "button", textContent: shortDay(day), title: formatDay(day) });
+        button.setAttribute("aria-pressed", String(day === state.selected));
         button.addEventListener("click", () => {
-          state.selected = b.day;
+          state.selected = day;
           render();
         });
         return button;
@@ -245,17 +275,19 @@
     if (state.status === "loading") return;
 
     const b = state.docs.find((d) => d.day === state.selected);
-    if (!b) {
+    const p = state.patents.find((d) => d.day === state.selected);
+    if (!b && !p) {
       main.replaceChildren(
         notice(
           "아직 저장된 브리핑이 없어요",
-          "매일 오전 9시쯤 Claude가 이차전지·반도체 뉴스를 정리해 이곳에 올려요. 바로 보고 싶으면 Claude Code에서 /daily-briefing 을 실행하세요.",
+          "매일 0시쯤 Claude가 이차전지·반도체 뉴스와 특허를 정리해 이곳에 올려요. 바로 보고 싶으면 Claude Code에서 /daily-briefing 이나 /patent-briefing 을 실행하세요.",
         ),
       );
       return;
     }
 
-    const written = typeof b.created_at === "string" ? `${b.created_at.slice(11, 16)} 작성` : "";
+    const stamped = b || p;
+    const written = typeof stamped.created_at === "string" ? `${stamped.created_at.slice(11, 16)} 작성` : "";
     main.replaceChildren(
       el(
         "section",
@@ -263,17 +295,84 @@
         el(
           "div",
           { className: "dateline" },
-          el("span", { className: "stamp", textContent: formatDay(b.day) }),
+          el("span", { className: "stamp", textContent: formatDay(stamped.day) }),
           written ? el("span", { className: "written", textContent: written }) : null,
         ),
-        el("p", { className: "overview", textContent: b.overview }),
+        b ? el("p", { className: "overview", textContent: b.overview }) : null,
       ),
-      el("div", { className: "topics" }, ...(b.topics || []).map(renderTopic)),
+      p ? renderPatents(p) : null,
+      b ? el("div", { className: "topics" }, ...(b.topics || []).map(renderTopic)) : null,
       el("p", {
         className: "foot",
-        textContent: "요약은 기사 제목을 바탕으로 AI가 작성했어요. 자세한 내용은 언론사 링크에서 확인하세요.",
+        textContent:
+          "뉴스 요약은 기사 제목을, 특허 요약은 KIPRIS의 청구항·초록을 바탕으로 AI가 작성했어요. 자세한 내용은 원문 링크에서 확인하세요.",
       }),
     );
+  }
+
+  function renderPatent(item) {
+    const card = el("li", { className: item.rank ? "pat hot" : "pat" });
+    const top = el("div", { className: "pat-top" });
+    if (item.rank) {
+      top.append(el("span", { className: "rank", textContent: `${item.rank}위` }));
+      top.append(el("span", { className: "badge", textContent: "🔥 주목" }));
+    }
+    top.append(el("span", { className: "cc", textContent: item.country }));
+    card.append(top, el("h4", { textContent: item.title_ko || item.title }));
+    if (item.title_ko && item.title_ko !== item.title) card.append(el("p", { className: "orig", textContent: item.title }));
+
+    const meta = el("p", { className: "pat-meta" });
+    const url = safeUrl(item.url);
+    meta.append(
+      url
+        ? el("a", { href: url, target: "_blank", rel: "noopener noreferrer", textContent: item.number })
+        : el("span", { textContent: item.number }),
+    );
+    if (item.applicant) meta.append(el("span", { textContent: item.applicant }));
+    if (item.published_at) meta.append(el("span", { textContent: `공개 ${item.published_at}` }));
+    meta.append(el("span", { textContent: `키워드 · ${item.keyword}` }));
+    card.append(meta);
+
+    if (item.rank && item.reasons && item.reasons.length) {
+      card.append(el("p", { className: "reasons", textContent: `주목도 ${item.score}점 · ${item.reasons.join(" · ")}` }));
+    }
+    if (item.summary_ko) card.append(el("p", { className: "summary", textContent: item.summary_ko }));
+    if (item.key_claim_ko) {
+      card.append(
+        el(
+          "blockquote",
+          { className: "claim" },
+          el("span", { textContent: item.has_claims ? "【청구항 1】 핵심" : "핵심 내용 (초록 기준)" }),
+          item.key_claim_ko,
+        ),
+      );
+    }
+    return card;
+  }
+
+  function renderPatents(p) {
+    const spotlight = p.spotlight || [];
+    const items = p.items || [];
+    const section = el(
+      "section",
+      { className: "patents" },
+      el(
+        "header",
+        {},
+        el("h2", { textContent: "특허 브리핑" }),
+        el("span", { className: "count", textContent: `주목 ${spotlight.length} · 새 특허 ${items.length}` }),
+      ),
+    );
+    if (spotlight.length) {
+      section.append(el("h3", { textContent: "🔥 주목 특허 순위" }), el("ol", { className: "pat-list" }, ...spotlight.map(renderPatent)));
+    }
+    for (const cc of ["KR", "US", "CN"]) {
+      const group = items.filter((i) => i.country === cc);
+      if (group.length) {
+        section.append(el("h3", { textContent: `${COUNTRY_NAMES[cc]} 새 특허` }), el("ul", { className: "pat-list" }, ...group.map(renderPatent)));
+      }
+    }
+    return section;
   }
 
   async function start() {
@@ -283,23 +382,28 @@
       render();
       return;
     }
-    db.collection("briefings")
-      .orderBy("day", "desc")
-      .limit(60)
-      .onSnapshot(
-        (snap) => {
-          state.docs = snap.docs.filter((d) => d.exists).map((d) => d.data());
-          state.status = "ready";
-          if (!state.docs.some((d) => d.day === state.selected)) {
-            state.selected = state.docs.length ? state.docs[0].day : null;
-          }
-          render();
-        },
-        () => {
-          state.status = "error";
-          render();
-        },
-      );
+    const loaded = new Set();
+    const listen = (collection, field) =>
+      db.collection(collection)
+        .orderBy("day", "desc")
+        .limit(60)
+        .onSnapshot(
+          (snap) => {
+            state[field] = snap.docs.filter((d) => d.exists).map((d) => d.data());
+            loaded.add(field);
+            if (loaded.size < 2) return;
+            state.status = "ready";
+            const days = allDays();
+            if (!days.includes(state.selected)) state.selected = days.length ? days[0] : null;
+            render();
+          },
+          () => {
+            state.status = "error";
+            render();
+          },
+        );
+    listen("briefings", "docs");
+    listen("patent_briefings", "patents");
   }
 
   start();
