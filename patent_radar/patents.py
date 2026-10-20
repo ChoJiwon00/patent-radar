@@ -44,6 +44,8 @@ class KiprisError(RuntimeError):
 class Keyword:
     ko: str
     en: str
+    # 이 키워드로 검색할 나라. 한국은 무료 한도에 여유가 있어 해외보다 키워드를 더 쓴다.
+    countries: tuple[str, ...] = ("KR", "US", "CN")
 
     @classmethod
     def parse(cls, text: str) -> "Keyword":
@@ -326,7 +328,7 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
     cutoff = (day - timedelta(days=365 * settings.recent_years)).isoformat()
 
     for kw in keywords:
-        for country in COUNTRIES:
+        for country in kw.countries:
             try:
                 found = client.search(country, kw)
             except KiprisError as e:
@@ -395,18 +397,24 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
 # ---------------------------------------------------------------- 키워드, 요약, 내보내기
 
 
-def keywords_from_briefing(conn: sqlite3.Connection, day: date, limit: int) -> tuple[str | None, list[Keyword]]:
-    """그날(없으면 그 전 가장 최근) 뉴스 브리핑의 키워드를 주제별로 번갈아 골라 limit개까지."""
+def keywords_from_briefing(conn: sqlite3.Connection, day: date, kr_per_topic: int,
+                           foreign_per_topic: int) -> tuple[str | None, list[Keyword]]:
+    """그날(없으면 그 전 가장 최근) 뉴스 브리핑의 키워드를 주제별로 번갈아 고른다.
+
+    주제마다 앞의 kr_per_topic개는 한국 특허를, 그중 앞의 foreign_per_topic개는 미국·중국 특허도 찾는다.
+    """
     row = conn.execute("SELECT day, content FROM briefings WHERE day <= ? ORDER BY day DESC LIMIT 1",
                        (day.isoformat(),)).fetchone()
     if row is None:
         return None, []
     topics = [t["keywords"] for t in json.loads(row["content"])["topics"]]
     picked: list[Keyword] = []
-    for i in range(max((len(t) for t in topics), default=0)):
+    for i in range(max(kr_per_topic, foreign_per_topic)):
         for kws in topics:
-            if i < len(kws) and len(picked) < limit:
-                picked.append(Keyword(kws[i]["ko"], kws[i]["en"]))
+            if i >= len(kws):
+                continue
+            countries = (("KR",) if i < kr_per_topic else ()) + (("US", "CN") if i < foreign_per_topic else ())
+            picked.append(Keyword(kws[i]["ko"], kws[i]["en"], countries))
     return row["day"], picked
 
 

@@ -11,8 +11,12 @@ max_per_query = 30
 exclude_sources = ["Calgary Roughnecks"]
 
 [patents]
-# 하루에 특허를 찾을 키워드 수 (브리핑 키워드에서 주제별로 번갈아 고름)
-keywords_per_day = 6
+# 뉴스 브리핑 키워드 중 주제마다 앞에서 몇 개로 특허를 찾을지.
+# KIPRIS 무료 한도는 국내·해외가 따로 월 1,000회라서 나눠 정해요.
+#   한국: 3주제 × 5개 = 하루 검색 15회 + 상세 조회 최대 15회 → 한 달 최대 약 930회
+#   해외: 3주제 × 2개 × 미국·중국 = 하루 검색 12회 + 상세 조회 최대 12회 → 한 달 약 744회
+kr_keywords_per_topic = 5
+foreign_keywords_per_topic = 2
 # 키워드·나라마다 브리핑에 넣을 새 특허 수
 per_search = 1
 # 검색 결과에서 살펴볼 개수 (주목도 계산에 씀)
@@ -28,9 +32,16 @@ spotlight_size = 5
 # 서비스(국내/해외)별 한 달 호출 상한. KIPRIS 무료 한도는 1,000회예요.
 monthly_call_limit = 950
 
+# 주제는 적힌 순서대로 브리핑에 나와요.
+# 여러 주제에 걸리는 기사는 먼저 적힌 주제로 저장되지만, AI 브리핑이 내용을 보고 알맞은 주제로 옮겨요.
+
 [[topics]]
 name = "이차전지"
 queries = ["이차전지", "전고체 배터리", "양극재 OR 음극재"]
+
+[[topics]]
+name = "ESS"
+queries = ["ESS 배터리", "에너지저장장치 OR 에너지저장시스템", "BESS OR 전력망 배터리"]
 
 [[topics]]
 name = "반도체"

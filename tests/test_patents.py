@@ -193,7 +193,25 @@ def test_keywords_from_briefing_alternate_topics(conn):
         {"name": "이차전지", "stories": story, "keywords": [kw("b1"), kw("b2")]},
     ]})
 
-    source, picked = patents.keywords_from_briefing(conn, date(2026, 10, 22), 4)
+    source, picked = patents.keywords_from_briefing(conn, date(2026, 10, 22), kr_per_topic=2, foreign_per_topic=1)
 
     assert source == "2026-10-21"
     assert [k.ko for k in picked] == ["a1", "b1", "a2", "b2"]
+    assert [k.countries for k in picked] == [("KR", "US", "CN"), ("KR", "US", "CN"), ("KR",), ("KR",)]
+
+
+def test_collect_searches_only_the_keywords_countries(conn):
+    class Recorder(FakeClient):
+        def __init__(self):
+            super().__init__({})
+            self.searched = []
+
+        def search(self, country, kw):
+            self.searched.append((country, kw.ko))
+            return []
+
+    client = Recorder()
+    patents.collect(conn, client, [patents.Keyword("가", "a"), patents.Keyword("나", "b", ("KR",))],
+                    date(2026, 10, 21), SETTINGS)
+
+    assert client.searched == [("KR", "가"), ("US", "가"), ("CN", "가"), ("KR", "나")]

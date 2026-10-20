@@ -24,7 +24,7 @@ from pathlib import Path
 import httpx
 
 from . import briefing, db, news, patents
-from .config import KST, kipris_api_key, load_patent_settings
+from .config import KST, kipris_api_key, load_news_settings, load_patent_settings
 
 
 def cmd_news(args: argparse.Namespace) -> int:
@@ -36,7 +36,9 @@ def cmd_news(args: argparse.Namespace) -> int:
             keep = ("id", "topic", "query", "title", "source", "published_at")
             articles = [{k: a[k] for k in keep} for a in news.news_for_day(conn, today)]
             errors = [f"{r.query}: {r.error}" for r in results if r.error]
-            print(json.dumps({"day": today.isoformat(), "errors": errors, "articles": articles}, ensure_ascii=False))
+            topics = [t.name for t in load_news_settings().topics]
+            print(json.dumps({"day": today.isoformat(), "topics": topics, "errors": errors, "articles": articles},
+                             ensure_ascii=False))
             return 0
 
     total = 0
@@ -115,12 +117,15 @@ def cmd_patents_search(args: argparse.Namespace) -> int:
                 return 2
             print(f"직접 준 키워드 {len(keywords)}개로 찾아요.")
         else:
-            source_day, keywords = patents.keywords_from_briefing(conn, day, settings.keywords_per_day)
+            source_day, keywords = patents.keywords_from_briefing(
+                conn, day, settings.kr_keywords_per_topic, settings.foreign_keywords_per_topic)
             if not keywords:
                 print("뉴스 브리핑이 없어서 키워드를 고를 수 없어요. 먼저 /daily-briefing 을 실행하거나 --keyword 를 주세요.")
                 return 1
             note = "" if source_day == day.isoformat() else f" (오늘 브리핑이 없어 {source_day} 브리핑 사용)"
-            print(f"뉴스 브리핑 키워드 {len(keywords)}개로 찾아요{note}.")
+            kr = sum(1 for k in keywords if "KR" in k.countries)
+            foreign = sum(1 for k in keywords if "US" in k.countries)
+            print(f"뉴스 브리핑 키워드로 찾아요: 한국 {kr}개, 미국·중국 {foreign}개{note}.")
 
         with httpx.Client(timeout=30) as http:
             client = patents.KiprisClient(conn, key, settings, http)

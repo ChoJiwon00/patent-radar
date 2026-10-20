@@ -121,6 +121,7 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 }
 .group h2::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); align-self: center; }
 .group[data-topic="이차전지"] h2::before { background: var(--battery); }
+.group[data-topic="ESS"] h2::before { background: var(--chip); }
 .group h2 .count { color: var(--muted); font-size: 0.85rem; font-weight: 400; }
 
 .articles { list-style: none; margin: 0; padding: 0; }

@@ -47,7 +47,8 @@ def load_news_settings(path: Path = TOPICS_PATH) -> NewsSettings:
 
 @dataclass(frozen=True)
 class PatentSettings:
-    keywords_per_day: int = 6
+    kr_keywords_per_topic: int = 5
+    foreign_keywords_per_topic: int = 2
     per_search: int = 1
     scan_per_search: int = 10
     recent_years: int = 3

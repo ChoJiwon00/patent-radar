@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import briefing, db, news
-from .config import KST, kipris_api_key
+from .config import KST, kipris_api_key, load_news_settings
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -50,6 +50,9 @@ def get_news(day: str | None = None) -> dict:
         raise HTTPException(400, "day는 YYYY-MM-DD 형식이어야 합니다.")
     with db.session() as conn:
         items = news.news_for_day(conn, target)
+    # config/topics.toml에 적힌 주제 순서대로 (같은 주제 안에서는 최신순 그대로)
+    order = [t.name for t in load_news_settings().topics]
+    items.sort(key=lambda a: order.index(a["topic"]) if a["topic"] in order else len(order))
     return {"day": target.isoformat(), "items": items}
 
 

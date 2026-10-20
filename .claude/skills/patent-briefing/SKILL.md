@@ -19,6 +19,8 @@ allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data
 ```
 
 **키워드가 없으면** 오늘 뉴스 브리핑의 키워드를 쓴다 (오늘 브리핑이 없으면 가장 최근 브리핑).
+주제(이차전지·ESS·반도체)마다 앞의 5개로 한국 특허를, 그중 앞의 2개로 미국·중국 특허도 찾는다
+(`config/topics.toml`의 `kr_keywords_per_topic`, `foreign_keywords_per_topic`).
 
 ```
 .venv\Scripts\python.exe -m patent_radar patents search
