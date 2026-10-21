@@ -7,6 +7,7 @@
 
 **데모:** https://chojiwon00.github.io/patent-radar/ · 주간 리포트: https://chojiwon00.github.io/patent-radar/#weekly
 · 매일 쌓이는 보고서: [`reports/`](reports/)
+· 특허가 처음이라면: [한 장 가이드](https://chojiwon00.github.io/patent-radar/guide.html)
 
 ![Patent Radar 화면](docs/screenshot.jpg)
 
@@ -19,6 +20,13 @@
 - **주간 트렌드 리포트**: 매주 월요일, 일주일치 통계(자주 나온 기술·출원인·기술 분류)와 AI의 흐름 분석을 만들어요.
 - **내 관심사**: 관심 회사·고정 관심 키워드를 설정하고, 페이지에서 ★ 별표한 특허는 등록 여부를 매주 확인해요.
 - **어디서나 보기**: claude.ai 사이드바에 고정한 비공개 페이지, 공개 데모 사이트(GitHub Pages), Markdown 보고서.
+
+## 특허가 처음이라면
+
+청구항·독립항·종속항, 특허 번호, 패밀리·PCT 같은 말을 한 장에 정리했어요.
+[웹에서 보기](https://chojiwon00.github.io/patent-radar/guide.html) · [이미지 내려받기](docs/guide.png) (1920×1080, 발표 자료에 그대로 붙일 수 있어요)
+
+[![특허 한 장 가이드](docs/guide.png)](https://chojiwon00.github.io/patent-radar/guide.html)
 
 ## 동작 방식
 
@@ -85,7 +93,7 @@ patent-radar/
 ├─ .claude/skills/           AI가 하는 일 (daily-briefing · patent-briefing · weekly-report)
 ├─ artifact/briefing.html    브리핑 페이지 (claude.ai와 GitHub Pages가 함께 씀)
 ├─ config/topics.toml        뉴스 주제·검색어·IPC 분류·관심 회사·관심 키워드·특허 검색 설정
-├─ docs/                     GitHub Pages 공개 사이트 (index.html + data/)
+├─ docs/                     GitHub Pages 공개 사이트 (index.html + data/, 특허 한 장 가이드 guide.html)
 ├─ reports/                  날짜별 특허 브리핑과 주간 리포트 (Markdown)
 ├─ patent_radar/
 │  ├─ __main__.py            명령줄 진입점

@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>특허 한 장 가이드</title>
+<meta name="description" content="특허를 처음 보는 사람을 위한 한 장짜리 가이드: 문서 구성, 독립항·종속항, 특허의 일생, 번호와 용어 읽는 법.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+  /* 한 장(16:9) 가이드. 넓은 화면에서는 3단(문서·일생 | 청구항 | 번호·용어), 좁으면 1단.
+     색과 글꼴은 브리핑 페이지(index.html)와 같은 토큰을 쓴다. */
+  :root {
+    --bg: #f2f5f4;
+    --surface: #ffffff;
+    --ink: #15201b;
+    --muted: #586761;
+    --line: #d7dfdb;
+    --cell: #1b7350;
+    --cell-soft: #e3f1ea;
+    --stamp: #a3303a;
+    --chip: #3949ab;
+    --display: "Hahmlet", "Noto Serif KR", "Batang", serif;
+    --body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101513; --surface: #171e1b; --ink: #e4ebe8; --muted: #93a39c; --line: #2a3531;
+      --cell: #5fc797; --cell-soft: #1a2d24; --stamp: #f08a8f; --chip: #9aa7ff; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101513; --surface: #171e1b; --ink: #e4ebe8; --muted: #93a39c; --line: #2a3531;
+    --cell: #5fc797; --cell-soft: #1a2d24; --stamp: #f08a8f; --chip: #9aa7ff; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.6 var(--body);
+    -webkit-font-smoothing: antialiased;
+    word-break: keep-all; overflow-wrap: break-word;  /* 한글은 띄어쓰기에서만 줄바꿈 */
+  }
+  a { color: inherit; text-underline-offset: 3px; }
+  :focus-visible { outline: 2px solid var(--chip); outline-offset: 2px; border-radius: 4px; }
+
+  .sheet {
+    max-width: 1600px; margin: 0 auto;
+    padding: 28px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px));
+    display: grid; gap: 18px;
+  }
+
+  .top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 24px; }
+  .eyebrow { margin: 0; font: 600 12.5px/1.4 var(--body); letter-spacing: .04em; color: var(--muted); }
+  .eyebrow .en { font-family: var(--mono); letter-spacing: .12em; }
+  h1 { margin: 2px 0 0; font: 700 clamp(28px, 4vw, 40px)/1.15 var(--display); letter-spacing: -.01em; }
+  .lede { margin: 4px 0 0; color: var(--muted); }
+  .back { font-size: 14px; color: var(--muted); white-space: nowrap; }
+  .shot .back { display: none; }  /* #shot: PPT용 이미지로 찍을 때 */
+
+  .grid { display: grid; gap: 16px; align-items: stretch; }
+  @media (min-width: 1100px) {
+    .grid { grid-template-columns: 1fr 1.45fr 1fr; }
+  }
+  .col { display: grid; gap: 16px; align-content: start; min-width: 0; }
+
+  section {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 16px 18px 18px; min-width: 0;
+  }
+  .claims { border-top: 3px solid var(--cell); }
+  h2 { margin: 0 0 10px; display: flex; align-items: baseline; gap: 10px; font: 700 19px/1.3 var(--display); }
+  h2 .n { font: 500 12px/1 var(--mono); color: var(--muted); letter-spacing: .06em; }
+  p { margin: 0; }
+  .nb { white-space: nowrap; }
+  b, strong { font-weight: 600; }
+  .note { font-size: 13px; color: var(--muted); }
+
+  /* 01 문서 구성 */
+  .parts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .parts li { display: grid; grid-template-columns: 6.2em 1fr; gap: 10px; align-items: baseline; font-size: 14px; }
+  .parts .k { font-weight: 600; }
+  .parts .star .k { color: var(--cell); }
+  .key {
+    margin-top: 12px; padding: 9px 12px; border-radius: 6px;
+    background: var(--cell-soft); font-size: 14px;
+  }
+
+  /* 02 청구항 */
+  .claims-body { display: grid; gap: 14px; }
+  @media (min-width: 640px) {
+    .claims-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); align-items: start; }
+  }
+  .ring {
+    border: 2px solid var(--cell); border-radius: 14px; padding: 8px 10px 10px;
+    display: grid; gap: 6px;
+  }
+  .ring .ring { border-style: dashed; }
+  .ring-label { font-size: 12.5px; line-height: 1.4; }
+  .ring-label b { display: block; font: 600 13px/1.4 var(--body); color: var(--cell); }
+  .r1 { background: var(--cell-soft); }
+  .r2 { background: color-mix(in srgb, var(--cell-soft) 40%, var(--surface)); }
+  .r3 { background: var(--surface); }
+  .ring-caption { margin-top: 6px; font-size: 12.5px; color: var(--muted); text-align: center; }
+
+  .claim-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .claim-list li {
+    font-size: 13.5px; line-height: 1.55; padding-left: 10px; border-left: 2px solid var(--line);
+  }
+  .claim-list .tag { font: 500 12px/1 var(--mono); color: var(--muted); margin-right: 4px; }
+  .claim-list .ind { border-left-color: var(--cell); }
+  .claim-list .ref { color: var(--cell); font-weight: 600; }
+  .eg { font: 500 12.5px/1.3 var(--body); color: var(--muted); margin: 0 0 8px; }
+
+  .rules { list-style: none; margin: 14px 0 0; padding: 12px 0 0; border-top: 1px dashed var(--line); display: grid; gap: 8px; }
+  .rules li { display: grid; grid-template-columns: 4.6em 1fr; gap: 10px; font-size: 14px; }
+  .rules .k { font-weight: 600; }
+  .verdict {
+    margin-top: 12px; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line);
+    font-size: 13.5px;
+  }
+  .verdict .yes { color: var(--cell); font-weight: 600; }
+  .verdict .no { color: var(--stamp); font-weight: 600; }
+
+  /* 03 일생: 세로 타임라인 */
+  .life { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .life li { position: relative; padding-left: 24px; display: grid; grid-template-columns: 2.6em 1fr; gap: 10px; font-size: 14px; line-height: 1.5; }
+  .life li::before {
+    content: ""; position: absolute; left: 5px; top: 1.05em; bottom: -10px; width: 2px; background: var(--line);
+  }
+  .life li:last-child::before { display: none; }
+  .life li::after {
+    content: ""; position: absolute; left: 0; top: .32em; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--surface); border: 2px solid var(--cell);
+  }
+  .life li:last-child::after { border-color: var(--muted); }
+  .life b { font-weight: 600; }
+  .life .when { color: var(--muted); }
+
+  /* 04 번호 · 05 용어 */
+  .nums { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .nums th, .nums td { text-align: left; padding: 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .nums tr:last-child th, .nums tr:last-child td { border-bottom: 0; }
+  .nums th { width: 2.6em; font: 500 12px/1.6 var(--mono); color: var(--muted); }
+  .nums code { font: 500 12.5px/1.6 var(--mono); }
+  .nums .tip { display: block; color: var(--muted); font-size: 12.5px; }
+
+  .terms { margin: 0; display: grid; gap: 8px; }
+  .terms div { display: grid; grid-template-columns: 4.8em 1fr; gap: 10px; font-size: 13.5px; line-height: 1.5; }
+  .terms dt { font-weight: 600; }
+  .terms dd { margin: 0; }
+
+  .foot {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 20px;
+    padding: 12px 16px; border-radius: 8px; background: var(--ink); color: var(--bg);
+  }
+  .steps { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 14.5px; }
+  .steps .label { font: 600 13px/1 var(--body); opacity: .75; margin-right: 4px; }
+  .steps .arrow { opacity: .6; }
+  .disclaimer { margin: 0; font-size: 12px; opacity: .75; }
+
+  /* 넓은 화면 = 한 장 슬라이드: 글자를 키우고 화면 높이를 채운다 */
+  @media (min-width: 1100px) {
+    body { font-size: 16px; }
+    .sheet { min-height: 100vh; grid-template-rows: auto 1fr auto; padding-top: 32px; }
+    .grid { align-items: stretch; }
+    .col { grid-template-rows: auto 1fr; }
+    h2 { font-size: 21px; margin-bottom: 12px; }
+    section { padding: 18px 20px 20px; }
+    .parts li { font-size: 15px; }
+    .key { font-size: 15px; }
+    .ring-label { font-size: 13.5px; }
+    .ring-label b { font-size: 14px; }
+    .ring-caption { font-size: 13.5px; }
+    .claim-list li { font-size: 15px; }
+    .rules li { font-size: 15px; }
+    .verdict { font-size: 15px; }
+    .life li { font-size: 15px; }
+    .note { font-size: 14px; }
+    .nums { font-size: 14px; }
+    .nums code { font-size: 14px; }
+    .nums .tip { font-size: 13.5px; }
+    .terms div { font-size: 14.5px; }
+    .steps { font-size: 15.5px; }
+    .disclaimer { font-size: 13px; }
+  }
+
+  /* 좁은 화면(1단)에서는 01→05 번호 순서대로 */
+  @media (max-width: 1099px) {
+    .col { display: contents; }
+    [aria-labelledby="h-parts"] { order: 1; }
+    .claims { order: 2; }
+    [aria-labelledby="h-life"] { order: 3; }
+    [aria-labelledby="h-nums"] { order: 4; }
+    [aria-labelledby="h-terms"] { order: 5; }
+  }
+
+  @media (max-width: 520px) {
+    .parts li, .terms div { grid-template-columns: 5.2em 1fr; }
+  }
+</style>
+</head>
+<body>
+<script>if (/shot/.test(location.search + location.hash)) document.documentElement.classList.add("shot");</script>
+<div class="sheet">
+  <header class="top">
+    <div>
+      <p class="eyebrow"><span class="en">PATENT RADAR</span> · 처음 보는 사람을 위한 가이드</p>
+      <h1>특허, 한 장으로 읽기</h1>
+      <p class="lede">브리핑에 나오는 청구항·종속항·패밀리 같은 말을 한 장에 모았어요.</p>
+    </div>
+    <a class="back" href="./">← 특허 브리핑 보러 가기</a>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <section aria-labelledby="h-parts">
+        <h2 id="h-parts"><span class="n">01</span>특허 문서는 네 부분</h2>
+        <ul class="parts">
+          <li><span class="k">서지사항</span><span>번호·출원인·날짜. 책의 표지예요.</span></li>
+          <li><span class="k">초록</span><span>발명을 한 문단으로 줄인 소개글.</span></li>
+          <li><span class="k">명세서</span><span>배경·실험·도면을 담은 자세한 설명서.</span></li>
+          <li class="star"><span class="k">청구범위 ★</span><span>권리의 경계를 적은 문장들(청구항).</span></li>
+        </ul>
+        <p class="key">권리의 범위는 설명서가 아니라 <strong>청구항</strong>이 정해요. 그래서 특허는 청구항부터 읽어요.</p>
+      </section>
+
+      <section aria-labelledby="h-life">
+        <h2 id="h-life"><span class="n">03</span>특허의 일생</h2>
+        <ol class="life">
+          <li><b>출원</b><span class="when">특허청에 신청</span></li>
+          <li><b>공개</b><span class="when">약 1년 6개월 뒤 누구나 볼 수 있게 공개 (아직 심사 중)</span></li>
+          <li><b>등록</b><span class="when">심사를 통과해 권리가 생김</span></li>
+          <li><b>만료</b><span class="when">출원일부터 20년</span></li>
+        </ol>
+        <p class="note" style="margin-top:10px">브리핑의 <b>공개</b> 특허는 아직 심사 중이고, <b>등록</b> 특허는 권리가 확정된 것이에요.</p>
+      </section>
+    </div>
+
+    <section class="claims" aria-labelledby="h-claims">
+      <h2 id="h-claims"><span class="n">02</span>청구항은 권리의 울타리</h2>
+      <div class="claims-body">
+        <div>
+          <div class="ring r1" role="img" aria-label="청구항 1이 가장 바깥 울타리이고, 그 안에 청구항 2, 그 안에 청구항 3이 있다.">
+            <span class="ring-label"><b>청구항 1 · 독립항</b>양극 + 음극 + 분리막 + 세라믹 코팅</span>
+            <div class="ring r2">
+              <span class="ring-label"><b>청구항 2 · 종속항</b>+ 세라믹은 알루미나</span>
+              <div class="ring r3">
+                <span class="ring-label"><b>청구항 3 · 종속항</b>+ 코팅 두께 <span class="nb">1~5㎛</span></span>
+              </div>
+            </div>
+          </div>
+          <p class="ring-caption">안쪽으로 갈수록 조건이 늘고 범위는 좁아져요</p>
+        </div>
+        <div>
+          <p class="eg">예시 · 이해를 돕는 가상 청구항</p>
+          <ol class="claim-list">
+            <li class="ind"><span class="tag">【1】</span>양극, 음극, 분리막을 포함하고, 분리막 표면에 세라믹 코팅층이 있는 이차전지.</li>
+            <li><span class="tag">【2】</span><span class="ref">제1항에 있어서,</span> 세라믹은 알루미나인 이차전지.</li>
+            <li><span class="tag">【3】</span><span class="ref">제2항에 있어서,</span> 코팅층 두께가 <span class="nb">1~5㎛인</span> 이차전지.</li>
+          </ol>
+        </div>
+      </div>
+      <ul class="rules">
+        <li><span class="k">독립항</span><span>다른 항을 빌리지 않고 혼자 서는 청구항. 조건이 가장 적어 <b>범위가 가장 넓어요</b>. 보통 청구항 1.</span></li>
+        <li><span class="k">종속항</span><span>"제○항에 있어서"로 시작해 조건을 더한 청구항. 범위는 좁지만, 넓은 항이 무효가 돼도 살아남는 <b>예비 울타리</b>예요.</span></li>
+        <li><span class="k">침해</span><span>남의 제품이 청구항의 조건을 <b>하나도 빠짐없이</b> 다 가져야 침해예요. 그래서 조건이 적은 청구항일수록 강해요.</span></li>
+      </ul>
+      <p class="verdict">경쟁사 전지가 알루미나 코팅 <b>8㎛</b>라면 → 청구항 1·2는 <span class="yes">해당</span>, 청구항 3은 두께가 달라 <span class="no">해당 안 됨</span>.</p>
+    </section>
+
+    <div class="col">
+      <section aria-labelledby="h-nums">
+        <h2 id="h-nums"><span class="n">04</span>번호 읽기</h2>
+        <table class="nums">
+          <tr><th scope="row">KR</th><td><code>10-2026-0141049</code><span class="tip">맨 앞 10 = 특허(20은 실용신안), 가운데 = 연도</span></td></tr>
+          <tr><th scope="row">US</th><td><code>US 2026/0123456 A1</code><span class="tip">끝의 A = 공개, B = 등록</span></td></tr>
+          <tr><th scope="row">CN</th><td><code>CN 120123456 A</code><span class="tip">A = 공개, B = 등록, U = 실용신안</span></td></tr>
+        </table>
+      </section>
+
+      <section aria-labelledby="h-terms">
+        <h2 id="h-terms"><span class="n">05</span>브리핑에 나오는 말</h2>
+        <dl class="terms">
+          <div><dt>패밀리</dt><dd>같은 발명을 여러 나라에 낸 묶음. 여러 나라에 낼수록 회사가 중요하게 본다는 신호예요.</dd></div>
+          <div><dt>우선권</dt><dd>첫 출원 후 12개월 안에 다른 나라에 내면 첫 출원 날짜를 인정받아요.</dd></div>
+          <div><dt>PCT</dt><dd>국제출원. 한 번 내 두고 약 30개월 안에 들어갈 나라를 골라요.</dd></div>
+          <div><dt>IPC</dt><dd>기술 분류 코드. H01M = 전지, H01L = 반도체 소자, H02J = 충전·전력망.</dd></div>
+        </dl>
+      </section>
+    </div>
+  </div>
+
+  <footer class="foot">
+    <p class="steps"><span class="label">읽는 순서</span>① 제목·초록으로 무슨 발명인지 <span class="arrow">→</span> ② 청구항 1로 권리의 핵심 <span class="arrow">→</span> ③ 종속항의 숫자·소재로 회사가 노리는 구체적 조건</p>
+    <p class="disclaimer">이해를 돕기 위한 단순화예요. 실제 권리 판단은 변리사와 상의하세요.</p>
+  </footer>
+</div>
+</body>
+</html>

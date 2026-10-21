@@ -672,7 +672,8 @@
     const about = document.getElementById("about");
     about.append("Claude Code가 매일 0시에 뉴스를 읽고 KIPRIS에서 한·미·중 특허를 찾아 정리하는 개인 특허 레이더예요. ",
       `마지막 업데이트 ${index.generated_at.slice(0, 16).replace("T", " ")} · `,
-      el("a", { href: REPO, target: "_blank", rel: "noopener noreferrer", textContent: "GitHub에서 코드 보기 ↗" }));
+      el("a", { href: REPO, target: "_blank", rel: "noopener noreferrer", textContent: "GitHub에서 코드 보기 ↗" }),
+      " · ", el("a", { href: "guide.html", textContent: "특허가 처음이라면? 한 장 가이드" }));
     about.hidden = false;
     settle();
   }
