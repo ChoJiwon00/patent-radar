@@ -1,0 +1,95 @@
+# 심층 리포트: 고밀도 LFP와 표면(탄소) 코팅
+#   python -m patent_radar patents deep config/deep/high_density_lfp.toml --out data/deep/high_density_lfp.json
+# 해외 검색은 본문 전체에서 단어를 찾아 관련 없는 특허가 섞이므로, LFP 관련 특허 분류(IPC)로 거른다.
+#   H01M4/58  인산염 등 양극 활물질 · H01M4/136, H01M4/1397  인산염 전극과 그 제조
+#   C01B25/45  리튬 인산철 같은 인산염 화합물 · C01B25/37  인산철(전구체)
+
+name = "고밀도 LFP · 표면 코팅"
+recent_years = 4
+ipc = ["H01M4/58", "H01M4/136", "H01M4/1397", "C01B25/45", "C01B25/37"]
+
+# ---- 고밀도: 압축밀도 · 탭밀도 · 입도 배합
+[[queries]]
+group = "고밀도"
+ko = "리튬인산철 압축밀도"
+en = '"lithium iron phosphate" "compaction density"'
+countries = ["KR", "US", "CN"]
+
+[[queries]]
+group = "고밀도"
+ko = "인산철리튬 압축밀도"
+countries = ["KR"]
+
+[[queries]]
+group = "고밀도"
+ko = "리튬인산철 탭밀도"
+en = '"lithium iron phosphate" "tap density"'
+countries = ["KR", "US", "CN"]
+
+[[queries]]
+group = "고밀도"
+ko = "리튬인산철 입도 분포"
+en = '"lithium iron phosphate" "particle size distribution"'
+countries = ["KR", "CN"]
+
+[[queries]]
+group = "고밀도"
+ko = "고압축 인산철"
+en = '"high compaction" "lithium iron phosphate"'
+countries = ["KR", "CN"]
+
+# ---- 탄소 · 표면 코팅
+[[queries]]
+group = "탄소·표면 코팅"
+ko = "인산철 탄소 코팅"
+en = '"lithium iron phosphate" "carbon coating layer"'
+countries = ["KR", "US", "CN"]
+
+[[queries]]
+group = "탄소·표면 코팅"
+ko = "리튬인산철 탄소 피복"
+en = '"carbon-coated lithium iron phosphate"'
+countries = ["KR", "CN"]
+
+[[queries]]
+group = "탄소·표면 코팅"
+ko = "리튬인산철 도핑 탄소"
+en = '"lithium iron phosphate" "doped carbon"'
+countries = ["KR", "US", "CN"]
+
+[[queries]]
+group = "탄소·표면 코팅"
+ko = "인산철 이중 코팅"
+en = '"lithium iron phosphate" "double coating"'
+countries = ["KR", "CN"]
+
+[[queries]]
+group = "탄소·표면 코팅"
+ko = "리튬인산철 붕소"
+en = '"lithium iron phosphate" "boron-doped carbon"'
+countries = ["KR", "CN"]
+
+[[queries]]
+group = "탄소·표면 코팅"
+ko = "리튬인산철 불소"
+en = '"lithium iron phosphate" "fluorine-doped"'
+countries = ["KR", "CN"]
+
+# ---- 공정: 분무건조 · 소성 · 전구체
+[[queries]]
+group = "공정"
+ko = "리튬인산철 분무 건조"
+en = '"lithium iron phosphate" "spray drying"'
+countries = ["KR", "US", "CN"]
+
+[[queries]]
+group = "공정"
+ko = "인산철리튬 제조 방법 소성"
+en = '"lithium iron phosphate" "sanding" "sintering"'
+countries = ["KR", "CN"]
+
+[[queries]]
+group = "공정"
+ko = "인산철 전구체 리튬인산철 제조"
+en = '"iron phosphate" precursor "lithium iron phosphate"'
+countries = ["KR", "US"]

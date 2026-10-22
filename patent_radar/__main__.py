@@ -12,6 +12,7 @@
     python -m patent_radar patents export FILE   claude.ai 브리핑 페이지에 올릴 JSON을 만든다
     python -m patent_radar patents report        GitHub에 올릴 보고서(reports/날짜.md)를 만든다
     python -m patent_radar patents usage         이번 달 KIPRIS 호출 수를 보여준다
+    python -m patent_radar patents deep CONFIG --out FILE   주제 하나를 깊게 모은다 (매일 브리핑 기록에는 넣지 않음)
     python -m patent_radar stars sync FOLDER     페이지에서 별표한 관심 특허 목록과 맞춘다
     python -m patent_radar stars check           한국 관심 특허의 진행 상태를 다시 확인한다
     python -m patent_radar weekly stats          일주일 통계를 뽑는다 (주간 리포트용)
@@ -28,7 +29,7 @@ from pathlib import Path
 
 import httpx
 
-from . import briefing, db, news, patents, stars, website, weekly
+from . import briefing, db, deep, news, patents, stars, website, weekly
 from .config import KST, kipris_api_key, load_interests, load_news_settings, load_patent_settings
 
 
@@ -235,6 +236,15 @@ def _write_reports_index() -> None:
     days = sorted((p.stem for p in REPORTS_DIR.glob("????-??-??.md")), reverse=True)
     weeks = sorted((p.stem for p in (REPORTS_DIR / "weekly").glob("????-??-??.md")), reverse=True)
     index = ["# 특허 브리핑 모음", "", "Patent Radar가 매일 찾은 한·미·중 특허와 주간 트렌드 리포트를 모아 둔 곳이에요.", ""]
+    deep_reports = sorted((p for p in (REPORTS_DIR / "deep").glob("*.md") if not p.stem.endswith("-list")), reverse=True)
+
+    def deep_title(p: Path) -> str:
+        # 첫 줄이 비었거나 제목(# )이 아니면 링크 글자가 비지 않게 파일 이름을 써요. 메모장이 붙이는 BOM도 떼어 내요.
+        first = next((s for s in p.read_text(encoding="utf-8-sig").splitlines() if s.strip()), "")
+        return first[2:].strip() if first.startswith("# ") and first[2:].strip() else p.stem
+
+    if deep_reports:
+        index += ["## 주제 심층 리포트", ""] + [f"- [{deep_title(p)}](deep/{p.name})" for p in deep_reports] + [""]
     if weeks:
         index += ["## 주간 트렌드 리포트", ""] + [f"- [{w} 까지의 일주일](weekly/{w}.md)" for w in weeks] + [""]
     index += ["## 매일 특허 브리핑", ""] + [f"- [{d}]({d}.md)" for d in days]
@@ -308,6 +318,30 @@ def cmd_patents_usage(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_patents_deep(args: argparse.Namespace) -> int:
+    if args.rows < 1 or min(args.details_kr, args.details_foreign) < 0:
+        print("--rows는 1 이상, --details-kr·--details-foreign은 0 이상이어야 해요.")
+        return 2
+    key = kipris_api_key()
+    if not key:
+        print(".env 파일에 KIPRIS_API_KEY가 없어요.")
+        return 2
+    topic = deep.load_topic(args.config)
+    per_country = {"KR": args.details_kr, "US": args.details_foreign, "CN": args.details_foreign}
+    with db.session() as conn, httpx.Client(timeout=30) as http:
+        before = {s: patents.calls_this_month(conn, s) for s in ("kr", "foreign")}
+        client = patents.KiprisClient(conn, key, load_patent_settings(), http)
+        hits, runs = deep.collect(client, topic, rows=args.rows)
+        chosen = deep.pick_for_details(hits, per_country) if not args.no_details else []
+        warnings = deep.fill_details(client, chosen)
+        after = {s: patents.calls_this_month(conn, s) for s in ("kr", "foreign")}
+        data = deep.to_json(topic, hits, runs, warnings, {"before": before, "after": after})
+    deep.save(data, args.out)
+    used = {s: after[s] - before[s] for s in after}
+    print(f"{topic.name}: 특허 {len(hits)}건(상세 {len(chosen)}건) → {args.out} · 이번 호출 국내 {used['kr']}회, 해외 {used['foreign']}회")
+    return 0
+
+
 def cmd_site_export(args: argparse.Namespace) -> int:
     with db.session() as conn:
         index = website.export(conn)
@@ -374,6 +408,14 @@ def main() -> int:
     p_report.set_defaults(func=cmd_patents_report)
     p_usage = pat_sub.add_parser("usage", help="이번 달 KIPRIS 호출 수")
     p_usage.set_defaults(func=cmd_patents_usage)
+    p_deep = pat_sub.add_parser("deep", help="주제 하나를 깊게 모으기 (심층 리포트용, 매일 브리핑 기록에는 넣지 않음)")
+    p_deep.add_argument("config", help="config/deep/ 아래 주제 설정(TOML)")
+    p_deep.add_argument("--out", required=True, help="결과 JSON (예: data/deep/high_density_lfp.json)")
+    p_deep.add_argument("--rows", type=int, default=30, help="검색어마다 살펴볼 최신 특허 수")
+    p_deep.add_argument("--details-kr", type=int, default=40, help="청구항을 가져올 한국 특허 수")
+    p_deep.add_argument("--details-foreign", type=int, default=25, help="나라(미국·중국)마다 상세를 가져올 특허 수")
+    p_deep.add_argument("--no-details", action="store_true", help="검색만 하고 상세 조회는 하지 않기")
+    p_deep.set_defaults(func=cmd_patents_deep)
 
     p_stars = sub.add_parser("stars", help="★ 관심 특허 맞추기·상태 확인")
     stars_sub = p_stars.add_subparsers(dest="action", required=True)

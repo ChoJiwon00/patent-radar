@@ -1,0 +1,49 @@
+# 심층 리포트 보충: 첫 검색에서 0건이던 한국어 표현을 바꿔 다시 찾는다 (한국 특허만)
+name = "고밀도 LFP · 표면 코팅 (한국 보충)"
+recent_years = 4
+ipc = ["H01M4/58", "H01M4/136", "H01M4/1397", "C01B25/45", "C01B25/37"]
+
+[[queries]]
+group = "고밀도"
+ko = "리튬 인산철 압축 밀도"
+countries = ["KR"]
+
+[[queries]]
+group = "고밀도"
+ko = "인산철 탭 밀도"
+countries = ["KR"]
+
+[[queries]]
+group = "고밀도"
+ko = "인산철리튬 입경"
+countries = ["KR"]
+
+[[queries]]
+group = "고밀도"
+ko = "리튬인산철 대입자 소입자"
+countries = ["KR"]
+
+[[queries]]
+group = "탄소·표면 코팅"
+ko = "인산철 질소 도핑 탄소"
+countries = ["KR"]
+
+[[queries]]
+group = "탄소·표면 코팅"
+ko = "올리빈 탄소 코팅"
+countries = ["KR"]
+
+[[queries]]
+group = "탄소·표면 코팅"
+ko = "리튬인산철 탄소층 두께"
+countries = ["KR"]
+
+[[queries]]
+group = "공정"
+ko = "인산철 분무건조"
+countries = ["KR"]
+
+[[queries]]
+group = "공정"
+ko = "인산철 전구체"
+countries = ["KR"]
