@@ -10,7 +10,9 @@
 · 특허가 처음이라면: [한 장 가이드](https://chojiwon00.github.io/patent-radar/guide.html)
 · 주제 심층 리포트: [고밀도 LFP와 표면 코팅 (2026년 10월)](reports/deep/high-density-lfp-2026-10.md)
 
-![Patent Radar 화면](docs/screenshot.jpg)
+[![Patent Radar 화면](docs/screenshot.jpg)](https://chojiwon00.github.io/patent-radar/)
+
+위 그림은 2026년 10월 21일에 찍은 화면이에요. 브리핑은 매일 0시에 새로 올라오니, 최신 화면은 [데모 사이트](https://chojiwon00.github.io/patent-radar/)에서 보세요(그림을 눌러도 가요).
 
 ## 무엇을 하나요
 
