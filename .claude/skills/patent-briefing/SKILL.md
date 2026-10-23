@@ -1,7 +1,7 @@
 ---
 name: patent-briefing
 description: Patent Radar의 특허 브리핑. 뉴스 브리핑 키워드(또는 사용자가 준 키워드)와 고정 관심 키워드로 KIPRIS에서 한국·미국·중국 최신 특허를 찾고, 주제에 맞지 않는 분류·이미 본 특허는 빼고, 🔥 주목 특허는 순위를 매겨 맨 위에 올린 뒤, 청구항을 한국어로 자세히 해설하고 관련도를 판정해 claude.ai 페이지·GitHub 보고서·공개 사이트에 올린다. "특허 브리핑", "특허 찾아줘", "patent briefing"을 요청받거나 매일 0시 예약 작업에서 실행된다.
-allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data/**), Read(data/**), ArtifactData, Bash(git add reports docs), Bash(git diff --cached *), Bash(git commit *), Bash(git push origin main)
+allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data/**), Read(data/**), ArtifactData, Bash(git add reports docs), Bash(git diff --cached *), Bash(git commit *), Bash(git pull --rebase origin main), Bash(git rebase --abort), Bash(git push origin main)
 ---
 
 # 특허 브리핑
@@ -111,7 +111,9 @@ allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data
    ```
    목록에 `reports/`·`docs/` 밖의 파일이 있으면 커밋하지 말고 멈춰서 보고한다. 바뀐 것이 없으면 커밋하지 않는다.
 4. `git commit -m "특허 브리핑 YYYY-MM-DD"` 로 커밋한다. 세션에 커밋 끝에 붙이라고 안내된 Co-Authored-By 줄이 있으면 붙인다.
-5. `git push origin main`. 실패하면 다시 시도하지 말고 오류를 보고한다.
+5. `git pull --rebase origin main`. 다른 PC에서 올린 커밋을 먼저 받고 오늘 커밋을 그 뒤에 붙인다.
+   실패하면 push하지 말고 오류를 보고한다. 충돌로 멈췄으면 `git rebase --abort`로 되돌린 뒤 보고한다.
+6. `git push origin main`. 실패하면 다시 시도하지 말고 오류를 보고한다.
 
 ## 5. 보고하기
 

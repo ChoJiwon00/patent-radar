@@ -1,7 +1,7 @@
 ---
 name: weekly-report
 description: Patent Radar의 주간 트렌드 리포트. 지난 7일 동안의 뉴스·특허 브리핑에서 통계(기사 수, 자주 나온 기술 키워드, 출원인·기술 분류 순위, 주목 특허)를 뽑고, ★ 관심 특허의 진행 상태를 확인한 뒤, 일주일의 흐름을 한국어로 분석해 claude.ai 페이지·GitHub 보고서·공개 사이트에 올린다. "주간 리포트", "이번 주 정리", "weekly report"를 요청받거나 월요일 0시 예약 작업에서 실행된다.
-allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data/**), Read(data/**), ArtifactData, Bash(git add reports docs), Bash(git diff --cached *), Bash(git commit *), Bash(git push origin main)
+allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data/**), Read(data/**), ArtifactData, Bash(git add reports docs), Bash(git diff --cached *), Bash(git commit *), Bash(git pull --rebase origin main), Bash(git rebase --abort), Bash(git push origin main)
 ---
 
 # 주간 트렌드 리포트
@@ -60,8 +60,10 @@ allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data
 
 1. `.venv\Scripts\python.exe -m patent_radar site export`
 2. Bash 도구로 `git add reports docs`, `git diff --cached --name-only`. `reports/`·`docs/` 밖의 파일이 있으면 멈추고 보고한다.
-3. `git commit -m "주간 리포트 YYYY-MM-DD"` (안내된 Co-Authored-By 줄이 있으면 붙인다), `git push origin main`.
-   실패하면 다시 시도하지 말고 오류를 보고한다.
+3. `git commit -m "주간 리포트 YYYY-MM-DD"` (안내된 Co-Authored-By 줄이 있으면 붙인다).
+4. `git pull --rebase origin main`. 다른 PC에서 올린 커밋을 먼저 받고 이번 커밋을 그 뒤에 붙인다.
+   실패하면 push하지 말고 오류를 보고한다. 충돌로 멈췄으면 `git rebase --abort`로 되돌린 뒤 보고한다.
+5. `git push origin main`. 실패하면 다시 시도하지 말고 오류를 보고한다.
 
 ## 6. 보고하기
 
