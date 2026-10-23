@@ -675,6 +675,23 @@ def _detail(value, where: str) -> list[dict]:
     return sections
 
 
+# 물질 이름은 한국에서 쓰는 이름으로 통일한다(사용자 결정 2026-10-23). AI 해설이 중국 특허 표기
+# (磷酸铁锂를 글자 순서대로 옮긴 '인산철리튬' 등)를 따라 쓴 말을 내보낼 때 바꾼다. 특허 원래 제목은 그대로 둔다.
+_TERMS = (
+    (re.compile(r"인산\s*망간\s*철\s*리튬|리튬\s*인산\s*철\s*망간|리튬\s*망간\s*인산\s*철"), "리튬인산망간철"),
+    (re.compile(r"인산\s*철\s*리튬(?!\s*이온)"), "리튬인산철"),
+)
+
+
+def standard_terms(text: str | None) -> str | None:
+    """'인산철리튬' → '리튬인산철', '인산망간철 리튬'·'리튬 인산철 망간' → '리튬인산망간철'."""
+    if not text:
+        return text
+    for pattern, name in _TERMS:
+        text = pattern.sub(name, text)
+    return text
+
+
 def for_page(conn: sqlite3.Connection, day: date) -> dict | None:
     """claude.ai 브리핑 페이지와 GitHub 보고서에 쓰는 형태. 주목 특허는 순위대로, 새 특허는 나라별 최신순."""
     content, created_at = _day_content(conn, day)
@@ -682,16 +699,19 @@ def for_page(conn: sqlite3.Connection, day: date) -> dict | None:
         return None
     spotlight, fresh, low = [], [], []
     for info, p in _rows(conn, content):
+        detail = json.loads(p["detail_ko"]) if p["detail_ko"] else []
         item = {
             "key": f"{p['country']}-{p['doc_key']}",
-            "country": p["country"], "number": p["number"], "title": p["title"], "title_ko": p["title_ko"],
+            "country": p["country"], "number": p["number"], "title": p["title"],
+            "title_ko": p["title_ko"] if p["title_ko"] == p["title"] else standard_terms(p["title_ko"]),
             "applicant": p["applicant"], "published_at": p["published_at"], "url": p["url"], "ipc": p["ipc"],
-            "summary_ko": p["summary_ko"], "key_claim_ko": p["key_claim_ko"], "keyword": info["keyword"],
-            "detail": json.loads(p["detail_ko"]) if p["detail_ko"] else [],
+            "summary_ko": standard_terms(p["summary_ko"]), "key_claim_ko": standard_terms(p["key_claim_ko"]),
+            "keyword": info["keyword"],
+            "detail": [{k: standard_terms(v) if isinstance(v, str) else v for k, v in d.items()} for d in detail],
             "rank": info["rank"], "score": info["score"], "reasons": info["reasons"], "new": info["new"],
             "has_claims": bool(p["claims"]), "claim_count": p["claim_count"],
             "relevant": None if p["relevant"] is None else bool(p["relevant"]),
-            "relevance_note": p["relevance_note"], "status": p["status"],
+            "relevance_note": standard_terms(p["relevance_note"]), "status": p["status"],
             "family": family_countries(conn, p["id"]),
             "interest": info.get("interest", False), "company": info.get("company"),
         }

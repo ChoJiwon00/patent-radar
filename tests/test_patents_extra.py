@@ -171,3 +171,36 @@ def test_stars_sync_and_status_check(conn, tmp_path):
 
     (folder / "US-x.json").unlink()
     assert stars.sync(conn, stars.read_page_docs(tmp_path)) == (0, 1)
+
+
+def test_page_uses_standard_material_names_but_keeps_official_titles(conn):
+    official = patents.Found("KR", "k2", "KR-k2", "인산철 리튬 정극 재료", "ACME", None, "2026-10-01", None,
+                             "https://example.com/k2")
+    client = FakeClient({("KR", "가"): [found("KR", "k1")], ("KR", "나"): [official]})
+    content = patents.collect(conn, client, [patents.Keyword("가", "a", ("KR",)), patents.Keyword("나", "b", ("KR",))],
+                              DAY, SETTINGS)
+    ids = {conn.execute("SELECT doc_key FROM patents WHERE id = ?", (i["patent_id"],)).fetchone()[0]: i["patent_id"]
+           for i in content["items"]}
+    patents.save_summaries(conn, {"items": [
+        {"id": ids["k1"], "title_ko": "인산철리튬 양극재", "summary_ko": "리튬 인산철 망간계 화합물을 쓴다",
+         "key_claim_ko": "인산망간철 리튬 입자", "relevant": True, "relevance_note": "인산철 리튬 전지",
+         "detail_ko": [{"heading": "용어 풀이", "body": "- 리튬 망간 인산철: LMFP"}] + DETAIL},
+        {"id": ids["k2"], "title_ko": "인산철 리튬 정극 재료", "summary_ko": "요약", "key_claim_ko": "핵심",
+         "detail_ko": DETAIL, "relevant": True, "relevance_note": "이유"}]}, DAY)
+
+    page = patents.for_page(conn, DAY)
+    items = {i["number"]: i for i in page["spotlight"] + page["items"] + page["low"]}
+    a, b = items["KR-k1"], items["KR-k2"]
+    assert a["title_ko"] == "리튬인산철 양극재"
+    assert a["summary_ko"] == "리튬인산망간철계 화합물을 쓴다"
+    assert a["key_claim_ko"] == "리튬인산망간철 입자"
+    assert a["detail"][0]["body"] == "- 리튬인산망간철: LMFP"
+    assert a["relevance_note"] == "리튬인산철 전지"
+    assert b["title_ko"] == b["title"] == "인산철 리튬 정극 재료"  # 특허 원래 제목은 그대로
+
+
+def test_standard_terms_leaves_project_names_and_lithium_ion_alone():
+    assert patents.standard_terms("인산망간철 양극재 과제") == "인산망간철 양극재 과제"
+    assert patents.standard_terms("인산철 리튬이온 전지") == "인산철 리튬이온 전지"
+    assert patents.standard_terms("리튬 인산철") == "리튬 인산철"
+    assert patents.standard_terms(None) is None

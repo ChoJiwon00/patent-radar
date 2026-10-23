@@ -15,6 +15,8 @@
 - 테스트: `.venv\Scripts\python.exe -m pytest -q`
 - 오늘 브리핑은 `.claude/skills/daily-briefing/SKILL.md`의 순서를 따른다.
 - `.env`(API 키)와 `data/`(수집 데이터)는 GitHub에 올리지 않는다.
+- 물질 이름은 리튬인산철(LFP), 리튬인산망간철(LMFP)로 쓴다. 중국 특허 번역의 '인산철리튬', '인산망간철 리튬' 순서를 따르지 않는다.
+  특허 원래 제목과 검색어는 원문 그대로 둔다. 페이지·보고서·사이트로 내보낼 때 `patents.standard_terms`가 AI 해설의 표기를 한 번 더 고친다.
 
 ## 두 PC에서 작업하기
 
