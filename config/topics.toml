@@ -46,6 +46,14 @@ companies = [
 
 # 고정 관심 키워드: 뉴스와 상관없이 매일 찾는 기술. 무료 한도 때문에 기본은 한국 특허만 찾아요.
 # countries = ["KR", "US", "CN"] 로 바꾸면 해외도 찾지만 해외 호출이 하루 4회씩 늘어요.
+# 세계 LFP 흐름은 한국·미국·중국을 모두 찾는다(사용자 결정 2026-10-23). '인산철리튬'은 중국 회사 특허의 한국어 표기.
+[[interests.keywords]]
+ko = "리튬인산철"
+en = "lithium iron phosphate"
+topic = "이차전지"
+alt = ["인산철리튬", "리튬 인산철"]
+countries = ["KR", "US", "CN"]
+
 [[interests.keywords]]
 ko = "황화물 고체 전해질"
 en = "sulfide solid electrolyte"
