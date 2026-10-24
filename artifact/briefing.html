@@ -1,4 +1,4 @@
-<title>Patent Radar 브리핑</title>
+<title>LFP · 이차전지 특허 레이더 | Patent Radar</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,7 +21,8 @@
     --warn-ink: #7a4a06;
     --display: "Hahmlet", "Noto Serif KR", "Batang", serif;
     --body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
-    --mono: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+    /* 고정폭 글꼴에는 한글이 없어서, 한글은 본문 글꼴로 보이게 한다 */
+    --mono: "IBM Plex Mono", "IBM Plex Sans KR", ui-monospace, "Consolas", monospace;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -41,6 +42,7 @@
     background: var(--bg); color: var(--ink);
     font: 15px/1.65 var(--body);
     -webkit-font-smoothing: antialiased;
+    word-break: keep-all; overflow-wrap: break-word;  /* 한글은 띄어쓰기에서만 줄바꿈 */
   }
   .wrap {
     max-width: 1120px; margin: 0 auto;
@@ -53,10 +55,12 @@
 
   .masthead { background: var(--surface); border-bottom: 1px solid var(--line); }
   .masthead .wrap { padding-block: 28px 0; display: grid; gap: 6px; }
-  .eyebrow { margin: 0; font: 500 12px/1.4 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .eyebrow { margin: 0; font: 600 12.5px/1.4 var(--body); letter-spacing: .04em; color: var(--muted); }
+  .eyebrow .en { font-family: var(--mono); letter-spacing: .12em; text-transform: uppercase; }
   h1 { margin: 0; font: 700 clamp(26px, 4.6vw, 38px)/1.2 var(--display); letter-spacing: -.01em; text-wrap: balance; }
-  .about { margin: 2px 0 0; font-size: 14px; color: var(--muted); max-width: 72ch; }
+  .about { margin: 2px 0 0; font-size: 14px; color: var(--muted); max-width: 76ch; }
   .about a { color: var(--ink); text-underline-offset: 3px; }
+  #updated { white-space: nowrap; }
 
   .modes { display: flex; gap: 4px; margin-top: 14px; border-bottom: 1px solid var(--line); }
   .modes button {
@@ -98,7 +102,7 @@
   [data-topic="반도체"] { --tone: var(--chip); }
   .topic > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
   .topic h2 { margin: 0; font: 700 22px/1.3 var(--display); color: var(--tone); }
-  .count { font: 400 12px/1 var(--mono); color: var(--muted); }
+  .count { font: 400 12.5px/1.2 var(--body); color: var(--muted); }
 
   .stories { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
   .stories li { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; }
@@ -111,7 +115,7 @@
   .sources a:hover { color: var(--tone); text-decoration-color: currentColor; }
 
   .keywords { border-top: 1px dashed var(--line); padding-top: 16px; display: grid; gap: 10px; }
-  .keywords h4 { margin: 0; font: 500 12px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .keywords h4 { margin: 0; font: 600 12.5px/1.4 var(--body); letter-spacing: .04em; color: var(--muted); }
   .kw-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
   .kw { display: grid; gap: 2px; padding-left: 12px; border-left: 2px solid color-mix(in srgb, var(--tone) 45%, transparent); }
   .kw b { font-weight: 600; font-size: 15px; }
@@ -121,7 +125,8 @@
   .patents { display: grid; gap: 18px; min-width: 0; }
   .patents > header, .block > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
   .patents h2, .block h2 { margin: 0; font: 700 24px/1.3 var(--display); }
-  .patents h3, .block h3 { margin: 6px 0 0; font: 500 12px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .patents h3, .block h3 { margin: 6px 0 0; font: 600 13px/1.4 var(--body); letter-spacing: .04em; color: var(--muted); }
+  .patents .note { margin: -8px 0 0; font-size: 13px; color: var(--muted); max-width: 78ch; }
   .pat-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
   .pat {
     background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
@@ -147,9 +152,14 @@
   .reasons { margin: 0; font-size: 12.5px; color: var(--stamp); }
   .pat p.summary { margin: 0; font-size: 14.5px; }
   .claim { margin: 0; padding: 8px 12px; border-left: 2px solid var(--line); font-size: 13.5px; color: var(--ink); }
-  .claim span { display: block; font: 500 11.5px/1.6 var(--mono); color: var(--muted); }
-  .detail { border-top: 1px dashed var(--line); margin-top: 6px; padding-top: 12px; display: grid; gap: 6px; }
-  .detail-label { margin: 0; font: 500 12px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .claim span { display: block; font: 600 12px/1.6 var(--body); color: var(--muted); }
+  .detail { border-top: 1px dashed var(--line); margin-top: 6px; padding-top: 10px; }
+  .detail > summary { cursor: pointer; font: 600 13px/1.5 var(--body); color: var(--muted); }
+  .detail > summary:hover { color: var(--ink); }
+  .detail > summary small { font-weight: 400; }
+  .detail[open] > summary small { display: none; }
+  .detail-body { display: grid; gap: 6px; padding-top: 6px; }
+  .detail-body > *, .detail li { min-width: 0; overflow-wrap: anywhere; }  /* 띄어쓰기 없는 긴 낱말이 폰 화면을 넘지 않게 */
   .detail h5 { margin: 8px 0 0; font: 600 14.5px/1.5 var(--body); }
   .detail p { margin: 0; font-size: 14.5px; }
   .detail ul { margin: 0; padding-left: 1.2em; display: grid; gap: 3px; font-size: 14.5px; }
@@ -178,7 +188,7 @@
   .trend { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--tone); border-radius: 6px; padding: 14px 16px; display: grid; gap: 6px; }
   .trend h3 { margin: 0; font: 600 16px/1.45 var(--body); }
   .trend p { margin: 0; font-size: 14.5px; }
-  .trend .topic-name { font: 500 11.5px/1 var(--mono); color: var(--tone); }
+  .trend .topic-name { font: 600 12px/1 var(--body); color: var(--tone); }
   .watch { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
   .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 24px; align-items: start; }
   .barlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
@@ -215,9 +225,17 @@
 
 <header class="masthead">
   <div class="wrap">
-    <p class="eyebrow">Patent Radar · 매일 0시</p>
-    <h1>이차전지 · ESS · 반도체 브리핑</h1>
-    <p id="about" class="about" hidden></p>
+    <p class="eyebrow"><span class="en">Patent Radar</span> · 매일 0시 · 한·미·중 특허</p>
+    <h1>LFP · 이차전지 특허 레이더</h1>
+    <div id="about">
+      <p class="about">리튬인산철(LFP) 양극재를 연구한 배터리 소재 연구자가 만든 특허 레이더예요. 매일 0시에 이차전지·ESS·반도체 뉴스에서
+        기술 키워드를 뽑아 KIPRIS에서 한·미·중 특허를 찾고, Claude가 청구항을 한국어로 풀어 써요.</p>
+      <p class="about">
+        <a href="https://github.com/ChoJiwon00/patent-radar/blob/main/reports/deep/high-density-lfp-2026-10.md" target="_blank" rel="noopener noreferrer">LFP 심층 리포트: 고밀도 LFP와 표면 코팅 ↗</a>
+        · <a href="https://github.com/ChoJiwon00/patent-radar" target="_blank" rel="noopener noreferrer">GitHub에서 코드 보기 ↗</a>
+        · <a href="guide.html">특허가 처음이라면? 한 장 가이드</a><span id="updated"></span>
+      </p>
+    </div>
     <nav class="modes" role="tablist" aria-label="보기">
       <button id="mode-daily" type="button" role="tab" aria-selected="true">일간 브리핑</button>
       <button id="mode-weekly" type="button" role="tab" aria-selected="false">주간 리포트</button>
@@ -236,7 +254,6 @@
 <script>
   const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
   const COUNTRY_NAMES = { KR: "한국", US: "미국", CN: "중국", JP: "일본", EP: "유럽", DE: "독일", TW: "대만", GB: "영국", FR: "프랑스" };
-  const REPO = "https://github.com/ChoJiwon00/patent-radar";
   const state = {
     source: null, // "db"(claude.ai) | "files"(GitHub Pages)
     db: null,
@@ -424,9 +441,12 @@
         el("span", { textContent: item.has_claims ? "【청구항 1】 핵심" : "핵심 내용 (초록 기준)" }), item.key_claim_ko));
     }
     if (item.detail && item.detail.length) {
-      const box = el("div", { className: "detail" }, el("p", { className: "detail-label", textContent: "자세한 설명" }));
-      for (const section of item.detail) box.append(el("h5", { textContent: section.heading }), ...renderBody(section.body));
-      card.append(box);
+      // 자세한 설명은 접어 두고, 펼치기 전에는 어떤 꼭지가 있는지만 보여 준다.
+      const body = el("div", { className: "detail-body" });
+      for (const section of item.detail) body.append(el("h5", { textContent: section.heading }), ...renderBody(section.body));
+      card.append(el("details", { className: "detail" },
+        el("summary", {}, "자세한 설명 ", el("small", { textContent: `펼치기 · ${item.detail.map((s) => s.heading).join(" · ")}` })),
+        body));
     }
     return card;
   }
@@ -460,7 +480,9 @@
       el("header", {}, el("h2", { textContent: "특허 브리핑" }),
         el("span", { className: "count", textContent: `주목 ${spotlight.length} · 새 특허 ${items.length}` })));
     if (spotlight.length) {
-      section.append(el("h3", { textContent: "🔥 주목 특허 순위" }), el("ol", { className: "pat-list" }, ...spotlight.map((i) => renderPatent(i, p.day))));
+      section.append(el("h3", { textContent: "🔥 주목 특허 순위" }),
+        el("p", { className: "note", textContent: "최근 7일 동안 검색 키워드 몇 갈래에 며칠 걸렸는지, 여러 나라에 출원했는지 같은 신호로 매긴 순위예요. 특허의 품질을 평가한 순위는 아니에요." }),
+        el("ol", { className: "pat-list" }, ...spotlight.map((i) => renderPatent(i, p.day))));
     }
     for (const cc of ["KR", "US", "CN"]) {
       const group = items.filter((i) => i.country === cc);
@@ -510,7 +532,7 @@
       renderStarred(),
       p ? renderPatents(p) : null,
       b ? el("div", { className: "topics" }, ...(b.topics || []).map(renderTopic)) : null,
-      el("p", { className: "foot", textContent: "뉴스 요약은 기사 제목을, 특허 요약은 KIPRIS의 청구항·초록을 바탕으로 AI가 작성했어요. 자세한 내용은 원문 링크에서 확인하세요." }),
+      el("p", { className: "foot", textContent: "뉴스 요약은 기사 제목을, 특허 해설은 KIPRIS의 청구항·초록을 바탕으로 AI(Claude)가 썼어요. 틀린 곳이 있을 수 있고 법률 자문이 아니니, 중요한 내용은 원문 링크에서 확인하세요." }),
     ].filter(Boolean));
   }
 
@@ -599,7 +621,7 @@
     renderNav();
     const main = document.getElementById("main");
     if (state.status === "unavailable") {
-      main.replaceChildren(notice("브리핑을 불러올 수 없어요", "claude.ai에 로그인한 상태로 열거나, GitHub Pages 주소로 열어 주세요."));
+      main.replaceChildren(notice("브리핑을 불러오지 못했어요", "잠시 뒤 새로 고쳐 주세요. 같은 내용은 GitHub 저장소의 reports 폴더에서도 볼 수 있어요."));
       return;
     }
     if (state.status === "error") {
@@ -626,6 +648,11 @@
       render();
     });
   }
+  // 주소의 #weekly만 바꿔도 탭이 따라 바뀌게 한다.
+  window.addEventListener("hashchange", () => {
+    state.mode = location.hash === "#weekly" ? "weekly" : "daily";
+    render();
+  });
 
   async function startDb(db) {
     state.source = "db";
@@ -669,16 +696,13 @@
     state.docs = days.map((d) => d.briefing).filter(Boolean);
     state.patents = days.map((d) => d.patents).filter(Boolean);
     state.weeks = await Promise.all(index.weeks.map((w) => get(`data/weeks/${w}.json`)));
-    const about = document.getElementById("about");
-    about.append("Claude Code가 매일 0시에 뉴스를 읽고 KIPRIS에서 한·미·중 특허를 찾아 정리하는 개인 특허 레이더예요. ",
-      `마지막 업데이트 ${index.generated_at.slice(0, 16).replace("T", " ")} · `,
-      el("a", { href: REPO, target: "_blank", rel: "noopener noreferrer", textContent: "GitHub에서 코드 보기 ↗" }),
-      " · ", el("a", { href: "guide.html", textContent: "특허가 처음이라면? 한 장 가이드" }));
-    about.hidden = false;
+    document.getElementById("updated").textContent = ` · 마지막 업데이트 ${index.generated_at.slice(0, 16).replace("T", " ")}`;
     settle();
   }
 
   async function start() {
+    // 소개 문단은 공개 사이트용이라 claude.ai 비공개 페이지에서는 숨긴다.
+    if (window.claude && window.claude.use) document.getElementById("about").hidden = true;
     const db = window.claude && window.claude.use ? await window.claude.use("db") : null;
     if (db) return startDb(db);
     try {
