@@ -62,7 +62,8 @@ allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data
    - `story`: (권장) 이 키워드가 나온 이야기 번호 (`stories`에서 1부터). 기사가 많은 이야기의 키워드는 특허 주목도에 반영된다.
    - `reason`: 어느 이야기에서 나온 키워드인지 한 문장
 
-마지막으로 `overview`에 세 주제를 통틀어 오늘의 흐름을 2~3문장으로 쓴다.
+마지막으로 `overview`에 세 주제를 통틀어 오늘의 흐름을 2~3문장으로 쓴다. `topics` 순서대로(이차전지 → ESS → 반도체) 쓰고,
+이 도구의 중심이 이차전지(특히 LFP)라서 첫 문장은 이차전지 이야기로 시작한다.
 
 ## 3. 저장하기
 

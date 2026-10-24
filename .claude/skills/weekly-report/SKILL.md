@@ -61,7 +61,7 @@ allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data
 1. `.venv\Scripts\python.exe -m patent_radar site export`
 2. Bash 도구로 `git add reports docs`, `git diff --cached --name-only`. `reports/`·`docs/` 밖의 파일이 있으면 멈추고 보고한다.
 3. `git commit -m "주간 리포트 YYYY-MM-DD"` (안내된 Co-Authored-By 줄이 있으면 붙인다).
-4. `git pull --rebase origin main`. 다른 PC에서 올린 커밋을 먼저 받고 이번 커밋을 그 뒤에 붙인다.
+4. `git pull --rebase origin main`. 다른 컴퓨터에서 올린 커밋을 먼저 받고 이번 커밋을 그 뒤에 붙인다.
    실패하면 push하지 말고 오류를 보고한다. 충돌로 멈췄으면 `git rebase --abort`로 되돌린 뒤 보고한다.
 5. `git push origin main`. 실패하면 다시 시도하지 말고 오류를 보고한다.
 
