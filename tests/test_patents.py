@@ -33,7 +33,8 @@ def test_parse_kr_search():
 def test_parse_foreign_search_builds_number_link_and_priority():
     [f] = patents.parse_foreign_search(ET.fromstring(FOREIGN_XML), "US")
     assert f.number == "US 2026/0312050 A1"
-    assert f.url == "https://patents.google.com/patent/US20260312050A1"
+    # Google Patents는 막 공개된 미국 특허를 못 찾아서 USPTO 원문 PDF로 연결한다.
+    assert f.url == "https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/20260312050"
     assert f.priority_no == "2025062014|20250403"
 
 
@@ -67,7 +68,7 @@ def test_us_grant_number_drops_leading_zero():
     xml = FOREIGN_XML.replace("<registerNo></registerNo>", "<registerNo>09432298</registerNo>").replace(
         "202600312050A1", "09432298B1")
     [f] = patents.parse_foreign_search(ET.fromstring(xml), "US")
-    assert f.url == "https://patents.google.com/patent/US9432298B1"
+    assert f.url == "https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/9432298"
 
 
 def test_old_patents_are_skipped(conn):
@@ -88,6 +89,40 @@ def test_foreign_claim_count():
     root = ET.fromstring("<r><claimText>1. A film.    2. The film of claim 1.   3. A film made by claim 1.   "
                          "4. An electrode using the film of claim 3.</claimText></r>")
     assert patents.parse_foreign_claims(root)[1] == 4
+
+
+def test_canceled_claims_are_not_counted():
+    us = "1. (canceled)    2. (Cancelled)   3. A cell.    4. The cell of claim 3.   5. (canceled)."
+    assert patents.count_claims("US", us) == 2
+    # 여러 항을 한꺼번에 지운 표기("1-35. (canceled)")는 항의 시작으로 세지 않는다.
+    assert patents.count_claims("US", "1-3. (canceled)    4. A cell.    5. The cell of claim 4.") == 2
+    kr = "1. 양극을 포함하는 전지.\n2. 삭제\n3. 제1항에 있어서, 음극을 더 포함하는 전지."
+    assert patents.count_claims("KR", kr) == 2
+    root = ET.fromstring("<r><claimInfo><claim>1. 전지.</claim></claimInfo><claimInfo><claim>2. 삭제</claim></claimInfo></r>")
+    assert patents.parse_kr_claims(root) == ("1. 전지.\n2. 삭제", 1)
+
+
+def test_recount_claims_fixes_stored_counts(conn):
+    conn.execute("INSERT INTO patents (country, doc_key, number, title, claims, claim_count) VALUES (?, ?, ?, ?, ?, ?)",
+                 ("US", "x", "US 2026/0000001 A1", "t", "1. (canceled)    2. A cell.    3. (canceled)", 3))
+    assert patents.recount_claims(conn) == 1
+    assert conn.execute("SELECT claim_count FROM patents").fetchone()[0] == 1
+
+
+def test_patent_links():
+    pdf = "https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/"
+    assert patents.patent_url("US", "US 2026/0312149 A1") == pdf + "20260312149"
+    assert patents.patent_url("US", "US 12476258 B2") == pdf + "12476258"
+    assert patents.patent_url("CN", "CN 120933341 A") == "https://patents.google.com/patent/CN120933341A"
+    assert patents.patent_url("US", "US 202600312050A1") is None  # 번호를 못 읽으면 링크를 만들지 않는다
+
+
+def test_spelling_variants_of_one_keyword_count_once():
+    groups = patents.keyword_groups(["리튬 인산철 양극재", "리튬인산철", "리튬인산철 양극 활물질", "고체 전해질",
+                                     "황화물 고체 전해질", "계통 연계 에너지저장"])
+    assert groups == ["리튬인산철", "고체 전해질", "계통 연계 에너지저장"]
+    assert patents.keyword_groups(["나트륨 이온 전지", "나트륨이온 배터리"]) == ["나트륨 이온 전지"]
+    assert patents.keyword_groups(["실리콘 음극재", "실리콘 음극 활물질"]) == ["실리콘 음극재"]
 
 
 def found(country, key, published="2026-10-01", priority=None, ipc=None, applicant="ACME"):

@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import KST
-from .patents import KiprisError
+from .patents import KiprisError, display_url
 
 
 def read_page_docs(folder: Path) -> list[dict]:
@@ -81,4 +81,5 @@ def listing(conn: sqlite3.Connection) -> list[dict]:
         """SELECT s.key, s.status, s.starred_at, s.changed_at, p.country, p.number, p.title, p.title_ko, p.url, p.applicant
            FROM stars s LEFT JOIN patents p ON p.id = s.patent_id ORDER BY s.starred_at DESC"""
     )
-    return [dict(r) for r in rows]
+    return [{**dict(r), "url": display_url(r["country"], r["number"], r["url"]) if r["country"] else r["url"]}
+            for r in rows]

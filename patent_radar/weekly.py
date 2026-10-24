@@ -9,7 +9,7 @@ import sqlite3
 from collections import Counter
 from datetime import date, datetime, timedelta
 
-from . import stars
+from . import patents, stars
 from .config import KST
 from .patents import COUNTRIES, COUNTRY_NAMES, split_applicants
 
@@ -92,7 +92,8 @@ def build_stats(conn: sqlite3.Connection, end: date, topic_order: list[str] | No
 
     def brief(pid: int) -> dict:
         p = rows[pid]
-        return {"country": p["country"], "number": p["number"], "title": p["title_ko"] or p["title"], "url": p["url"],
+        return {"country": p["country"], "number": p["number"], "title": p["title_ko"] or p["title"],
+                "url": patents.display_url(p["country"], p["number"], p["url"]),
                 "applicant": _first_applicant(p["applicant"]), "rank": shown[pid]["rank"],
                 "score": shown[pid]["score"], "reasons": shown[pid]["reasons"], "company": shown[pid]["company"]}
 
@@ -162,6 +163,10 @@ def get(conn: sqlite3.Connection, end: date) -> dict | None:
     if row is None:
         return None
     stats = json.loads(row["stats"])
+    # 예전에 저장한 주간 통계의 해외 특허 주소도 지금 규칙(미국은 USPTO 원문)으로 보여 준다.
+    for p in [*stats["patents"]["spotlight"], *stats["patents"]["companies"], *stats.get("stars", [])]:
+        if p.get("country") and p.get("number"):
+            p["url"] = patents.display_url(p["country"], p["number"], p.get("url"))
     return {"end": row["end_day"], "start": stats["start"], "created_at": row["created_at"],
             "stats": stats, "commentary": json.loads(row["commentary"])}
 

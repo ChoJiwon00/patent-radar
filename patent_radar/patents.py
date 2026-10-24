@@ -6,14 +6,15 @@
   점수가 기준 이상인 동안은 매일 맨 위에 다시 나온다.
 
 주목도 점수 (특허에 공개된 조회수가 없고, 막 공개된 특허는 인용도 거의 없어서 아래 신호로 대신한다)
-- 최근 뉴스 키워드 하나에 걸릴 때마다 +2  (여러 뉴스 주제와 이어진 기술)
+- 최근 검색 키워드(뉴스·고정 관심) 하나에 걸릴 때마다 +2 (여러 기술 주제와 이어진 특허)
+  다른 키워드를 통째로 품은 키워드(띄어쓰기·'양극재/양극 활물질' 같은 꼬리말만 다른 것 포함)는 같은 갈래로 센다.
 - 최근 며칠 동안 검색에 걸린 날 하루마다 +1 (첫날 제외, 계속 뉴스와 이어지는 기술)
 - 같은 발명을 다른 나라에도 냈으면 나라마다 +2 (여러 나라에 돈을 들여 낸 중요한 발명)
   같은 우선권·같은 국제출원 번호를 가진 특허, 한국 특허가 우선권을 처음 낸 나라를 함께 센다.
 - 국제출원(PCT)을 했으면 +1
 - 관심 회사의 특허면 +2
 - 기사가 많이 나온 뉴스 이야기에서 나온 키워드면 +1 (뉴스 화제성)
-- 청구항이 20개 이상이면 +1 (권리 범위를 넓게 잡은 특허)
+- 살아 있는 청구항이 20개 이상이면 +1 (권리 범위를 넓게 잡은 특허. 삭제된 항은 세지 않는다)
 AI가 '관련 낮음'으로 판정한 특허는 순위에서 뺀다.
 
 청구항·초록 같은 상세 정보는 브리핑에 넣을 특허만 따로 가져와서 무료 호출 한도를 아낀다.
@@ -197,6 +198,40 @@ def parse_kr_search(root: ET.Element) -> list[Found]:
     return found
 
 
+USPTO_PDF = "https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/"
+
+
+def patent_url(country: str, number: str | None) -> str | None:
+    """해외 특허 원문 주소. 'US 2026/0312149 A1', 'CN 120933341 A' 같은 번호로 만든다.
+
+    Google Patents는 막 공개된 미국 특허를 몇 주 동안 찾지 못해서(404), 미국은 USPTO 원문 PDF로 연결한다.
+    """
+    parts = (number or "").split()
+    if len(parts) not in (2, 3) or parts[0] != country or not re.fullmatch(r"[\d/]+", parts[1]):
+        return None
+    digits = parts[1].replace("/", "")
+    if country == "US":
+        return USPTO_PDF + (digits if len(digits) == 11 else digits.lstrip("0"))
+    return f"https://patents.google.com/patent/{country}{digits}{parts[2] if len(parts) == 3 else ''}"
+
+
+def display_url(country: str, number: str | None, url: str | None) -> str | None:
+    """화면·보고서에 쓸 원문 주소. 예전에 Google Patents 주소로 저장한 해외 특허도 지금 규칙으로 다시 만든다."""
+    return url if country == "KR" else patent_url(country, number) or url
+
+
+def refresh_links(conn: sqlite3.Connection) -> int:
+    """저장된 해외 특허 주소를 지금 규칙(미국은 USPTO 원문)으로 바꾼다. 바뀐 특허 수."""
+    changed = 0
+    for p in conn.execute("SELECT id, country, number, url FROM patents WHERE country != 'KR'").fetchall():
+        url = display_url(p["country"], p["number"], p["url"])
+        if url != p["url"]:
+            conn.execute("UPDATE patents SET url = ? WHERE id = ?", (url, p["id"]))
+            changed += 1
+    conn.commit()
+    return changed
+
+
 def parse_foreign_search(root: ET.Element, country: str) -> list[Found]:
     found = []
     for res in root.iter("searchResult"):
@@ -212,7 +247,7 @@ def parse_foreign_search(root: ET.Element, country: str) -> list[Found]:
         if num:
             shown = f"{num[:4]}/{num[4:]}" if country == "US" and len(num) == 11 else num
             number = f"{country} {shown} {kind}".strip()
-            url = f"https://patents.google.com/patent/{country}{num}{kind}"
+            url = patent_url(country, number)
         else:
             number, url = f"{country} {lit}", None
         found.append(
@@ -252,15 +287,45 @@ def parse_kr_family(root: ET.Element) -> dict:
 def parse_kr_claims(root: ET.Element) -> tuple[str | None, int]:
     claims = [(c.findtext("claim") or "").strip() for c in root.iter("claimInfo")]
     claims = [c for c in claims if c]
-    return ("\n".join(claims) or None), len(claims)
+    text = "\n".join(claims) or None
+    return text, count_claims("KR", text)
+
+
+# 해외 청구항은 "1. ...", "    2. ..."처럼 공백 여러 칸 뒤 번호로 시작한다.
+# "according to claim 1. " 같은 문장 끝 번호를 세지 않으려고 공백이 두 칸 이상인 것만 센다.
+_CLAIM_START = re.compile(r"(?:^|\s{2,})\d{1,3}\.\s")
+# 심사 중에 지운 항은 번호만 남는다: 미국 "5. (canceled)", 한국 "2. 삭제".
+_CANCELED = re.compile(r"(?:\d{1,3}\.\s*)?(?:\(\s*(?:canceled|cancelled)\s*\)|삭제)\s*\.?", re.I)
+
+
+def count_claims(country: str, text: str | None) -> int:
+    """살아 있는 청구항 수. 한국 청구항은 한 줄이 한 항이다."""
+    if not text:
+        return 0
+    if country == "KR":
+        claims = [c.strip() for c in text.split("\n") if c.strip()]
+    else:
+        starts = list(_CLAIM_START.finditer(text))
+        claims = [text[m.end(): nxt.start() if nxt else len(text)].strip()
+                  for m, nxt in zip(starts, [*starts[1:], None])]
+    return sum(1 for c in claims if not _CANCELED.fullmatch(c))
 
 
 def parse_foreign_claims(root: ET.Element) -> tuple[str | None, int]:
     text = "\n".join(t for t in ((c.text or "").strip() for c in root.iter("claimText")) if t)
-    # 청구항은 "1. ...", "    2. ..."처럼 공백 여러 칸 뒤 번호로 시작한다.
-    # "according to claim 1. " 같은 문장 끝 번호를 세지 않으려고 공백이 두 칸 이상인 것만 센다.
-    count = len(re.findall(r"(?:^|\s{2,})\d{1,3}\.\s", text))
-    return (text or None), count
+    return (text or None), count_claims("US", text)
+
+
+def recount_claims(conn: sqlite3.Connection) -> int:
+    """저장된 청구항으로 청구항 수를 다시 센다 (삭제된 항을 세던 예전 값을 고친다). 바뀐 특허 수."""
+    changed = 0
+    for p in conn.execute("SELECT id, country, claims, claim_count FROM patents WHERE claims IS NOT NULL").fetchall():
+        count = count_claims(p["country"], p["claims"])
+        if count != p["claim_count"]:
+            conn.execute("UPDATE patents SET claim_count = ? WHERE id = ?", (count, p["id"]))
+            changed += 1
+    conn.commit()
+    return changed
 
 
 def parse_foreign_abstract(root: ET.Element) -> str | None:
@@ -380,13 +445,30 @@ def family_countries(conn: sqlite3.Connection, patent_id: int) -> list[str]:
     return sorted(countries)
 
 
+def keyword_groups(keywords) -> list[str]:
+    """다른 키워드를 통째로 품은 키워드를 같은 갈래로 묶고, 갈래마다 가장 짧은 키워드를 돌려준다.
+
+    띄어쓰기는 무시하고, '배터리'는 '전지'로, '활물질'은 '재'로 맞춘 뒤 비교한다. 그래서 '리튬인산철',
+    '리튬 인산철 양극재', '리튬인산철 양극 활물질'은 모두 '리튬인산철' 하나로, '실리콘 음극재'와
+    '실리콘 음극 활물질'도 하나로 센다.
+    """
+    def norm(k: str) -> str:
+        return re.sub(r"\s", "", k).lower().replace("배터리", "전지").replace("활물질", "재")
+
+    groups: list[tuple[str, str]] = []
+    for kw in sorted(set(keywords), key=lambda k: (len(norm(k)), len(k), k)):
+        if not any(shorter in norm(kw) for shorter, _ in groups):
+            groups.append((norm(kw), kw))
+    return [kw for _, kw in groups]
+
+
 def importance(conn: sqlite3.Connection, patent_id: int, day: date, window_days: int,
                companies: tuple[str, ...] = ()) -> tuple[int, list[str]]:
     """(주목도 점수, 이유 목록). 계산 방법은 이 파일 맨 위 설명 참고."""
     since = (day - timedelta(days=window_days - 1)).isoformat()
     params = (patent_id, since, day.isoformat())
-    keywords = [r["keyword"] for r in conn.execute(
-        "SELECT DISTINCT keyword FROM patent_matches WHERE patent_id = ? AND day BETWEEN ? AND ? ORDER BY keyword", params)]
+    keywords = keyword_groups(r["keyword"] for r in conn.execute(
+        "SELECT DISTINCT keyword FROM patent_matches WHERE patent_id = ? AND day BETWEEN ? AND ?", params))
     days = conn.execute(
         "SELECT COUNT(DISTINCT day) FROM patent_matches WHERE patent_id = ? AND day BETWEEN ? AND ?", params).fetchone()[0]
     buzz = conn.execute(
@@ -398,7 +480,7 @@ def importance(conn: sqlite3.Connection, patent_id: int, day: date, window_days:
     score = 2 * len(keywords) + max(days - 1, 0) + 2 * (len(countries) - 1)
     reasons = []
     if len(keywords) > 1:
-        reasons.append(f"뉴스 키워드 {len(keywords)}개에 걸림({', '.join(keywords)})")
+        reasons.append(f"검색 키워드 {len(keywords)}개에 걸림({', '.join(keywords)})")
     if days > 1:
         reasons.append(f"최근 {window_days}일 중 {days}일 검색됨")
     if len(countries) > 1:
@@ -675,7 +757,7 @@ def _detail(value, where: str) -> list[dict]:
     return sections
 
 
-# 물질 이름은 한국에서 쓰는 이름으로 통일한다(사용자 결정 2026-10-23). AI 해설이 중국 특허 표기
+# 물질 이름은 한국에서 쓰는 이름으로 통일한다(2026-10-23에 정함). AI 해설이 중국 특허 표기
 # (磷酸铁锂를 글자 순서대로 옮긴 '인산철리튬' 등)를 따라 쓴 말을 내보낼 때 바꾼다. 특허 원래 제목은 그대로 둔다.
 _TERMS = (
     (re.compile(r"인산\s*망간\s*철\s*리튬|리튬\s*인산\s*철\s*망간|리튬\s*망간\s*인산\s*철"), "리튬인산망간철"),
@@ -704,7 +786,8 @@ def for_page(conn: sqlite3.Connection, day: date) -> dict | None:
             "key": f"{p['country']}-{p['doc_key']}",
             "country": p["country"], "number": p["number"], "title": p["title"],
             "title_ko": p["title_ko"] if p["title_ko"] == p["title"] else standard_terms(p["title_ko"]),
-            "applicant": p["applicant"], "published_at": p["published_at"], "url": p["url"], "ipc": p["ipc"],
+            "applicant": p["applicant"], "published_at": p["published_at"], "ipc": p["ipc"],
+            "url": display_url(p["country"], p["number"], p["url"]),
             "summary_ko": standard_terms(p["summary_ko"]), "key_claim_ko": standard_terms(p["key_claim_ko"]),
             "keyword": info["keyword"],
             "detail": [{k: standard_terms(v) if isinstance(v, str) else v for k, v in d.items()} for d in detail],
@@ -715,13 +798,15 @@ def for_page(conn: sqlite3.Connection, day: date) -> dict | None:
             "family": family_countries(conn, p["id"]),
             "interest": info.get("interest", False), "company": info.get("company"),
         }
-        if info["rank"]:
+        if p["relevant"] == 0:
+            # 순위를 매긴 뒤에 '관련 낮음'으로 판정된 특허(지난 날짜 브리핑)도 순위에서 빼고 접는다.
+            low.append({**item, "rank": None})
+        elif info["rank"]:
             spotlight.append(item)
-        elif p["relevant"] == 0:
-            low.append(item)
         else:
             fresh.append(item)
     spotlight.sort(key=lambda i: i["rank"])
+    spotlight = [{**item, "rank": n} for n, item in enumerate(spotlight, start=1)]
     for group in (fresh, low):
         group.sort(key=lambda i: i["published_at"] or "", reverse=True)
         group.sort(key=lambda i: COUNTRIES.index(i["country"]))
@@ -732,7 +817,8 @@ def for_page(conn: sqlite3.Connection, day: date) -> dict | None:
 def report_markdown(page: dict) -> str:
     """GitHub에 올릴 하루 특허 브리핑 문서."""
     lines = [f"# {page['day']} 특허 브리핑", ""]
-    keywords = ", ".join(f"{k['ko']} ({k['en']})" for k in page["keywords"])
+    # 뉴스 키워드와 고정 관심 키워드가 같은 말이면 한 번만 적는다.
+    keywords = ", ".join(dict.fromkeys(f"{k['ko']} ({k['en']})" for k in page["keywords"]))
     lines += [f"검색 키워드: {keywords}" if keywords else "검색 키워드: 없음", ""]
 
     def entry(i: dict, heading: str) -> list[str]:

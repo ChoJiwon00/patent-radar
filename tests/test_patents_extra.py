@@ -74,6 +74,42 @@ def test_low_relevance_patent_is_folded_and_never_ranked(conn):
     assert "## 관련도가 낮은 특허" in patents.report_markdown(page)
 
 
+def test_patent_judged_irrelevant_later_leaves_past_rankings(conn):
+    shared = "1|20250101"
+    a, b, c = patents.Keyword("가", "a"), patents.Keyword("나", "b"), patents.Keyword("다", "c")
+    client = FakeClient({("US", "가"): [found("US", "u1", priority=shared), found("US", "u2", priority="2|x")],
+                         ("US", "나"): [found("US", "u1", priority=shared), found("US", "u2", priority="2|x")],
+                         ("US", "다"): [found("US", "u2", priority="2|x")],
+                         ("CN", "가"): [found("CN", "c1", priority=shared), found("CN", "c2", priority="2|x")]})
+    content = patents.collect(conn, client, [a, b, c], DAY, SETTINGS)
+    ranked = sorted((i for i in content["items"] if i["rank"]), key=lambda i: i["rank"])
+    assert len(ranked) >= 2
+    first = ranked[0]["patent_id"]
+
+    # 다음 날 해설을 쓰다가 1위를 '관련 낮음'으로 판정해도, 지난 날짜의 순위는 저장된 그대로다.
+    summarize(conn, first, relevant=False, note="다른 기술")
+    page = patents.for_page(conn, DAY)
+    first_key = "US-" + conn.execute("SELECT doc_key FROM patents WHERE id = ?", (first,)).fetchone()[0]
+    assert first_key not in {i["key"] for i in page["spotlight"]}
+    assert [i["rank"] for i in page["spotlight"]] == list(range(1, len(page["spotlight"]) + 1))
+    assert [i["relevance_note"] for i in page["low"]] == ["다른 기술"]
+    assert page["low"][0]["rank"] is None
+
+
+def test_old_google_links_for_us_patents_are_shown_as_uspto(conn):
+    stored = patents.Found("US", "202600312149A1", "US 2026/0312149 A1", "LFP CELL", "ACME", None, "2026-10-08", None,
+                           "https://patents.google.com/patent/US20260312149A1")
+    client = FakeClient({("US", "가"): [stored]})
+    patents.collect(conn, client, [patents.Keyword("가", "a", ("US",))], DAY, SETTINGS)
+    conn.execute("UPDATE patents SET url = ?", (stored.url,))  # 예전 규칙으로 저장된 주소
+    pdf = "https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/20260312149"
+
+    page = patents.for_page(conn, DAY)
+    assert [i["url"] for i in page["spotlight"] + page["items"]] == [pdf]
+    assert patents.refresh_links(conn) == 1
+    assert conn.execute("SELECT url FROM patents").fetchone()[0] == pdf
+
+
 def test_relevance_can_be_saved_without_rewriting_summary(conn):
     client = FakeClient({("KR", "가"): [found("KR", "k1")]})
     content = patents.collect(conn, client, [patents.Keyword("가", "a", ("KR",))], DAY, SETTINGS)
@@ -184,7 +220,7 @@ def test_page_uses_standard_material_names_but_keeps_official_titles(conn):
     patents.save_summaries(conn, {"items": [
         {"id": ids["k1"], "title_ko": "인산철리튬 양극재", "summary_ko": "리튬 인산철 망간계 화합물을 쓴다",
          "key_claim_ko": "인산망간철 리튬 입자", "relevant": True, "relevance_note": "인산철 리튬 전지",
-         "detail_ko": [{"heading": "용어 풀이", "body": "- 리튬 망간 인산철: LMFP"}] + DETAIL},
+         "detail_ko": [{"heading": "용어 풀이", "body": "- 리튬 망간 인산철: 망간을 넣은 인산철"}] + DETAIL},
         {"id": ids["k2"], "title_ko": "인산철 리튬 정극 재료", "summary_ko": "요약", "key_claim_ko": "핵심",
          "detail_ko": DETAIL, "relevant": True, "relevance_note": "이유"}]}, DAY)
 
@@ -194,7 +230,7 @@ def test_page_uses_standard_material_names_but_keeps_official_titles(conn):
     assert a["title_ko"] == "리튬인산철 양극재"
     assert a["summary_ko"] == "리튬인산망간철계 화합물을 쓴다"
     assert a["key_claim_ko"] == "리튬인산망간철 입자"
-    assert a["detail"][0]["body"] == "- 리튬인산망간철: LMFP"
+    assert a["detail"][0]["body"] == "- 리튬인산망간철: 망간을 넣은 인산철"
     assert a["relevance_note"] == "리튬인산철 전지"
     assert b["title_ko"] == b["title"] == "인산철 리튬 정극 재료"  # 특허 원래 제목은 그대로
 
