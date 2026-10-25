@@ -1,0 +1,77 @@
+# 심층 리포트: LFP 양산 공정 (원료·분쇄·분무건조·소성·분쇄·분급·이물·수분)
+#   python -m patent_radar patents deep config/deep/lfp_process.toml --out data/deep/lfp_process.json --rows 50 --details-kr 50 --details-foreign 30
+# 해외 검색은 본문 전체에서 단어를 찾아 관련 없는 특허가 섞이므로, LFP 관련 특허 분류(IPC)로 거른다.
+
+name = "LFP 양산 공정"
+recent_years = 4
+ipc = ["H01M4/58", "H01M4/136", "H01M4/1397", "C01B25/45", "C01B25/37"]
+
+# ---- 원료·전구체 경로
+[[queries]]
+group = "원료·전구체"
+ko = "인산철 전구체 제조"
+en = '"iron phosphate" precursor "lithium iron phosphate" preparation'
+countries = ["KR", "US", "CN"]
+
+[[queries]]
+group = "원료·전구체"
+ko = "리튬인산철 고상법"
+en = '"lithium iron phosphate" "solid phase method"'
+countries = ["KR", "CN"]
+
+[[queries]]
+group = "원료·전구체"
+ko = "산화철 리튬인산철 제조"
+en = '"iron oxide" "lithium iron phosphate" "one-step"'
+countries = ["KR", "CN"]
+
+# ---- 분쇄·혼합·분무건조
+[[queries]]
+group = "분쇄·분무건조"
+ko = "리튬인산철 습식 분쇄"
+en = '"lithium iron phosphate" "sand mill"'
+countries = ["KR", "CN"]
+
+[[queries]]
+group = "분쇄·분무건조"
+ko = "인산철리튬 슬러리 분무"
+en = '"lithium iron phosphate" "spray drying" slurry'
+countries = ["KR", "US", "CN"]
+
+# ---- 소성
+[[queries]]
+group = "소성"
+ko = "리튬인산철 소성 분위기"
+en = '"lithium iron phosphate" "roller kiln"'
+countries = ["KR", "CN"]
+
+[[queries]]
+group = "소성"
+ko = "리튬인산철 소결 온도"
+en = '"lithium iron phosphate" "sintering temperature" "protective atmosphere"'
+countries = ["KR", "US", "CN"]
+
+# ---- 분쇄·분급·이물·수분 (품질 관리)
+[[queries]]
+group = "분급·품질"
+ko = "리튬인산철 기류 분쇄"
+en = '"lithium iron phosphate" "jet mill"'
+countries = ["KR", "CN"]
+
+[[queries]]
+group = "분급·품질"
+ko = "양극재 자성 이물 제거"
+en = '"lithium iron phosphate" "magnetic impurities"'
+countries = ["KR", "US", "CN"]
+
+[[queries]]
+group = "분급·품질"
+ko = "리튬인산철 수분"
+en = '"lithium iron phosphate" "moisture content"'
+countries = ["KR", "CN"]
+
+[[queries]]
+group = "분급·품질"
+ko = "리튬인산철 연속 생산"
+en = '"lithium iron phosphate" "continuous production"'
+countries = ["KR", "CN"]

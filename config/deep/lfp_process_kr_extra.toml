@@ -1,0 +1,44 @@
+# 심층 리포트 보충: LFP 양산 공정 (한국 특허만, 첫 검색에서 0건이던 표현을 바꿔 다시 찾기)
+name = "LFP 양산 공정 (한국 보충)"
+recent_years = 4
+ipc = ["H01M4/58", "H01M4/136", "H01M4/1397", "C01B25/45", "C01B25/37"]
+
+[[queries]]
+group = "분쇄·분무건조"
+ko = "인산철리튬 분쇄"
+countries = ["KR"]
+
+[[queries]]
+group = "소성"
+ko = "인산철리튬 소결"
+countries = ["KR"]
+
+[[queries]]
+group = "소성"
+ko = "인산철리튬 소성"
+countries = ["KR"]
+
+[[queries]]
+group = "원료·전구체"
+ko = "인산철리튬 제조 방법"
+countries = ["KR"]
+
+[[queries]]
+group = "원료·전구체"
+ko = "인산제1철 리튬"
+countries = ["KR"]
+
+[[queries]]
+group = "분급·품질"
+ko = "인산철리튬 분급"
+countries = ["KR"]
+
+[[queries]]
+group = "분급·품질"
+ko = "양극 활물질 자성 이물"
+countries = ["KR"]
+
+[[queries]]
+group = "분급·품질"
+ko = "인산철리튬 수분 함량"
+countries = ["KR"]
