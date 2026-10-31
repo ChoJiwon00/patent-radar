@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>청구항 숫자 지도</title>
-<meta name="description" content="LFP 특허 청구항에 적힌 압축 밀도·입자 크기·탄소 함량·소성 온도 같은 숫자를 특허마다 범위 막대로 모은 그래프.">
+<meta name="description" content="리튬인산철(LFP) 특허 청구항에 적힌 압축 밀도·입자 크기·탄소 함량·소성 온도 같은 숫자를 특허마다 범위 막대로 모은 그래프.">
 <meta property="og:type" content="article">
 <meta property="og:title" content="청구항 숫자 지도 · Patent Radar">
-<meta property="og:description" content="LFP 특허 청구항에 적힌 압축 밀도·입자 크기·탄소 함량·소성 온도 같은 숫자를 특허마다 범위 막대로 모은 그래프.">
+<meta property="og:description" content="리튬인산철(LFP) 특허 청구항에 적힌 압축 밀도·입자 크기·탄소 함량·소성 온도 같은 숫자를 특허마다 범위 막대로 모은 그래프.">
 <meta property="og:url" content="https://chojiwon00.github.io/patent-radar/claims.html">
 <meta property="og:image" content="https://chojiwon00.github.io/patent-radar/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -205,7 +205,7 @@
   <div class="wrap">
     <p class="eyebrow"><span class="en">Patent Radar</span> · 청구항 숫자 지도</p>
     <h1>청구항 숫자 지도</h1>
-    <p class="about">LFP 심층 리포트 두 편에 실린 ‘청구항에 나온 숫자’ 표를 그래프 7개로 옮겼어요.
+    <p class="about">리튬인산철(LFP) 심층 리포트 두 편에 실린 ‘청구항에 나온 숫자’ 표를 그래프 7개로 옮겼어요.
       꽉 찬 막대는 특허가 보호받으려고 청구항에 적은 범위이고, 속이 빈 막대는 초록에 적힌 값(특허가 내세운 결과값 포함)이에요.
       <strong>시장에 나온 제품을 잰 값은 아니에요.</strong></p>
     <p class="about">
@@ -247,7 +247,7 @@
       <li>막대의 왼쪽 끝과 오른쪽 끝이 특허가 적은 범위의 아래·위 값이에요. 막대에 마우스를 올리면(휴대폰은 한 번 누르면) 출원인·항목·값·근거가 나오고, 누르면 원문이 열려요.</li>
       <li>같은 그래프 안에서도 무리(제목 아래 묶음)마다 재는 대상이 달라요. 예를 들어 분말 압축 밀도와 극판 밀도는 같은 g/cm³이지만 비교하면 안 돼요.</li>
       <li>색은 회사 국적이 아니라 특허를 낸 나라예요. 예를 들어 중국 회사가 한국에 낸 특허는 파란색(한국 특허)이에요.</li>
-      <li>청구항의 범위는 넓게 잡는 경우가 많아서, 범위가 넓다고 기술이 앞선 것은 아니에요. 같은 회사가 여러 나라에 낸 특허(예: CATL의 한국·미국 출원)도 많아서, 막대가 겹친다고 업계 공통 조건이라는 뜻은 아니에요.</li>
+      <li>청구항의 범위는 넓게 잡는 경우가 많아서, 범위가 넓다고 기술이 앞선 것은 아니에요. 같은 회사가 여러 나라에 낸 특허(예: CATL(컨템포러리 엠퍼렉스 테크놀로지)의 한국·미국 출원)도 많아서, 막대가 겹친다고 업계 공통 조건이라는 뜻은 아니에요.</li>
     </ul>
   </section>
 
@@ -260,7 +260,7 @@
     <ul>
       <li>단위는 그래프마다 하나로 맞췄어요: nm로 적힌 입자 크기는 μm로, Å로 적힌 두께는 nm로, ppm은 wt%로(10,000 ppm = 1 wt%).</li>
       <li>한 칸에 온도와 승온 속도(℃/분)가 같이 적혀 있으면 온도만 그렸어요.</li>
-      <li>표에 실린 숫자만 썼어요. 리포트 본문에만 나오는 숫자와, 7가지 주제가 아닌 줄(시간·압력·비율 등)은 리포트 표에서 보세요.</li>
+      <li>표에 실린 숫자만 썼어요. 7가지 주제가 아닌 줄(시간·압력·비율 등)은 리포트 표에서, 리포트 본문에만 나오는 숫자는 리포트 본문에서 보세요.</li>
     </ul>
     <details>
       <summary>그래프에서 뺀 값과 이유 (<span id="left-count">0</span>개)</summary>
@@ -331,6 +331,10 @@
   }
 
   function visible(r) { return !state.hidden.has(r.country); }
+  function emptyMsg() {
+    const text = state.hidden.size === Object.keys(COUNTRY).length ? "나라를 하나 이상 골라 주세요." : "고른 나라의 특허는 이 그래프에 없어요.";
+    return `<p class="empty">${text}</p>`;
+  }
 
   function renderChart(panel) {
     // axis "group": 무리마다 재는 대상이 달라(예: 분말 밀도와 극판 밀도) 눈금을 따로 그린다
@@ -355,7 +359,7 @@
       html += `</div></div>`;
     });
     if (!perGroup) html += axisHTML(shared, panel.unit, "bottom");
-    $("#chart").innerHTML = shown ? html : `<p class="empty">나라를 하나 이상 골라 주세요.</p>`;
+    $("#chart").innerHTML = shown ? html : emptyMsg();
   }
 
   function renderTable(panel) {
@@ -374,7 +378,7 @@
           + `<td class="num">${esc(valueText(r, panel.unit))}</td><td>${esc(r.source)}</td><td class="num">${esc(r.published || "")}</td></tr>`;
       }
     }
-    $("#table").innerHTML = shown ? html + "</tbody></table>" : `<p class="empty">나라를 하나 이상 골라 주세요.</p>`;
+    $("#table").innerHTML = shown ? html + "</tbody></table>" : emptyMsg();
   }
 
   function renderCountries(panel) {
@@ -460,7 +464,7 @@
   });
   chart.addEventListener("focusin", (e) => {
     const el = e.target.closest(".row");
-    if (!el) return;
+    if (!el || !el.matches(":focus-visible")) return;  // 마우스로 누르고 돌아왔을 때는 띄우지 않음
     fillTip(el, false);
     const box = el.querySelector(".mark").getBoundingClientRect();
     placeTip(box.left, box.bottom);
@@ -472,7 +476,7 @@
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideTip(); });
   addEventListener("scroll", () => {
     if (tip.classList.contains("pinned")) return;
-    if (tipRow && tipRow === document.activeElement) {
+    if (tipRow && tipRow === document.activeElement && tipRow.matches(":focus-visible")) {
       const box = tipRow.querySelector(".mark").getBoundingClientRect();
       placeTip(box.left, box.bottom);
     } else hideTip();

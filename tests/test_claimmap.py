@@ -49,11 +49,13 @@ def test_mixed_nm_and_um_range_becomes_um():
     ("2차 소성 승온 속도 / 도달 온도", "소성", "sinter", cm.SINTER_LATE),
     ("소결 온도", "소성", "sinter", "단계 구분 없음"),
     ("정온 구간 소결 온도", "소성", "sinter", "단계 구분 없음"),  # 한 번 굽는 동안의 구간
-    ("2단 중 고온 단계 소결 온도", None, "sinter", cm.SINTER_LATE),
-    ("혼합 후 소결 온도 / 승온 속도(질소)", "소성", "sinter", "단계 구분 없음"),
+    ("고온 단계 소결 온도(2단 이상 항온)", None, "sinter", cm.SINTER_LATE),
+    ("혼합 후 2차 소결 온도 / 승온 속도(질소, S5)", "소성", "sinter", cm.SINTER_LATE),
+    ("A 입자 1차 소결 온도(S1)", "소성", "sinter", cm.SINTER_EARLY),
     ("분무 온도", "분무건조", "spray", "입구·출구 구분 없음"),
     ("제1 인산철 결정립 크기", "원료·전구체", "d50", "원료 1차 입자·결정립"),
     ("1차 입자 평균 입경", None, "d50", "완제품 1차 입자"),
+    ("완제품 1차 입자 크기(용매가 물·알코올일 때)", "마무리·품질", "d50", "완제품 1차 입자"),
     ("분쇄 뒤 D50", "분쇄·혼합", "d50", "분쇄 뒤 슬러리"),
     ("작은 입자 D50", None, "d50", "완제품 속 큰·작은 입자"),
     ("자유 탄소 함량", None, "carbon", "자유 탄소"),
@@ -76,7 +78,7 @@ def test_classify_leaves_out_values_that_cannot_be_compared_with_a_reason(item, 
 
 
 def test_temperature_with_heating_rate_uses_the_temperature_part():
-    targets, _ = cm._classify(row("혼합 후 소결 온도 / 승온 속도(질소)", "700–850℃ / 3℃/min", stage="소성"))
+    targets, _ = cm._classify(row("혼합 후 2차 소결 온도 / 승온 속도(질소, S5)", "700–850℃ / 3℃/min", stage="소성"))
     assert cm.parse_value(cm._part("700–850℃ / 3℃/min", targets[0][2])) == [(700.0, 850.0, None)]
 
 
@@ -91,6 +93,13 @@ def test_dedupe_keeps_one_mark_and_both_item_names():
     other = cm.Mark("sinter", "g", 760, 800, None, "℃", "760–800℃", row("소결 온도", "760–800℃"))
     kept = cm._dedupe([a, b, other])
     assert len(kept) == 2 and kept[0].row.item == "마지막 고온 소결 온도 · 고온 구간 소결 온도"
+
+
+def test_dedupe_ignores_spacing_and_keeps_the_process_stage():
+    a = cm.Mark("spray", "g", 150, 400, None, "℃", "150–400", row("분무 건조 입구 / 출구 온도", "150–400"))
+    b = cm.Mark("spray", "g", 150, 400, None, "℃", "150–400", row("분무건조 입구 / 출구 온도", "150–400", stage="분무건조"))
+    kept = cm._dedupe([a, b])
+    assert len(kept) == 1 and kept[0].row.item == "분무 건조 입구 / 출구 온도" and kept[0].row.stage == "분무건조"
 
 
 def test_reports_build_into_seven_panels_without_heating_rates_or_bad_units():

@@ -39,9 +39,9 @@ PANELS = [
              "2단 탄소는 처음 구울 때 탄소를 아주 적게 두고, 두 번째 구울 때 코팅을 채우는 방식이에요."},
     {"id": "coating", "title": "코팅 두께", "unit": "nm", "scale": "linear", "note": "탄소층(껍질) 두께예요."},
     {"id": "sinter", "title": "소성 온도", "unit": "℃", "scale": "linear",
-     "note": "가마에서 굽는 온도예요. 청구항에서 둘 이상으로 나눠 굽는 특허는 앞 단계(1단·1차·예비)와 뒤 단계(2단·2차·본 소결)로 나눴고, "
-             "한 번 굽는 특허(온도를 올리는 구간과 유지하는 구간만 있는 경우 포함)는 '단계 구분 없음'에 넣었어요. 뒤 단계에는 탄소 코팅을 입히려고 다시 굽는 단계도 있어요. "
-             "CN 122393268 A처럼 탄소를 두 번에 나눠 입히는 특허는 앞 단계가 700℃를 넘기도 해요. 전구체(원료) 단계의 열처리는 뺐어요."},
+     "note": "가마에서 굽는 온도예요. 1단·1차·예비로 나뉜 온도는 앞 단계로, 2단·2차·본 소결로 나뉜 온도는 뒤 단계로 나눴어요. "
+             "단계 이름이 없는 온도(한 번 굽는 경우, 서로 다른 입자를 따로 굽는 경우 포함)는 '단계 구분 없음'에 넣었어요. 뒤 단계에는 탄소 코팅을 입히려고 다시 굽는 단계도 있어요. "
+             "초록에 따르면 CN 122393268 A처럼 탄소를 두 번에 나눠 입히는 특허는 앞 단계가 700℃를 넘기도 해요. 전구체(원료) 단계의 열처리는 뺐어요."},
     {"id": "spray", "title": "분무건조 온도", "unit": "℃", "scale": "linear",
      "note": "분무건조는 슬러리를 뜨거운 기체 속에 안개처럼 뿌려 말리는 공정이에요. 기체가 들어가는 입구 온도와 나오는 출구 온도를 나눴어요."},
     {"id": "fep", "title": "철-인 비 (Fe/P)", "unit": "몰비", "scale": "linear",
@@ -326,8 +326,13 @@ def _dedupe(marks: list[Mark]) -> list[Mark]:
         key = (m.panel, m.group, m.row.patent, m.low, m.high, m.open)
         if key in kept:
             first = kept[key]
-            if m.row.item not in first.row.item.split(" · "):
-                first.row = Row(**{**asdict(first.row), "item": f"{first.row.item} · {m.row.item}"})
+            changes = {}
+            if re.sub(r"\s", "", m.row.item) not in [re.sub(r"\s", "", x) for x in first.row.item.split(" · ")]:
+                changes["item"] = f"{first.row.item} · {m.row.item}"  # 띄어쓰기만 다른 이름은 한 번만
+            if not first.row.stage and m.row.stage:
+                changes["stage"] = m.row.stage  # 공정 리포트에만 있는 '공정 단계'를 잃지 않게
+            if changes:
+                first.row = Row(**{**asdict(first.row), **changes})
         else:
             kept[key] = m
     return list(kept.values())
