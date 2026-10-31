@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>청구항 숫자 지도</title>
+<meta name="description" content="LFP 특허 청구항에 적힌 압축 밀도·입자 크기·탄소 함량·소성 온도 같은 숫자를 특허마다 범위 막대로 모은 그래프.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="청구항 숫자 지도 · Patent Radar">
+<meta property="og:description" content="LFP 특허 청구항에 적힌 압축 밀도·입자 크기·탄소 함량·소성 온도 같은 숫자를 특허마다 범위 막대로 모은 그래프.">
+<meta property="og:url" content="https://chojiwon00.github.io/patent-radar/claims.html">
+<meta property="og:image" content="https://chojiwon00.github.io/patent-radar/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2315201b'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='%23f2f5f4' font-family='monospace'%3EPR%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+  /* 청구항 숫자 지도. 위: 제호와 그래프 고르는 칩, 가운데: 범위 막대 그래프(또는 표), 아래: 읽는 법·만든 방법.
+     데이터는 data/claims.json (python -m patent_radar patents claimmap 이 만든다). 색과 글꼴은 브리핑 페이지와 같은 토큰. */
+  :root {
+    --bg: #f2f5f4;
+    --surface: #ffffff;
+    --ink: #15201b;
+    --muted: #586761;
+    --line: #d7dfdb;
+    --focus: #3949ab;
+    /* 나라 색: dataviz 기본 범주색 1–3번(파랑·주황·청록). 밝은·어두운 화면에서 각각 검증함 */
+    --kr: #2a78d6;
+    --cn: #eb6834;
+    --us: #1baf7a;
+    --display: "Hahmlet", "Noto Serif KR", "Batang", serif;
+    --body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    --mono: "IBM Plex Mono", "IBM Plex Sans KR", ui-monospace, "Consolas", monospace;
+    --lw: 300px;   /* 특허 이름 칸 너비 */
+    --gap: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101513; --surface: #171e1b; --ink: #e4ebe8; --muted: #93a39c; --line: #2a3531; --focus: #9aa7ff;
+      --kr: #3987e5; --cn: #d95926; --us: #199e70; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101513; --surface: #171e1b; --ink: #e4ebe8; --muted: #93a39c; --line: #2a3531; --focus: #9aa7ff;
+    --kr: #3987e5; --cn: #d95926; --us: #199e70; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.65 var(--body);
+    -webkit-font-smoothing: antialiased;
+    word-break: keep-all; overflow-wrap: break-word;  /* 한글은 띄어쓰기에서만 줄바꿈 */
+  }
+  [hidden] { display: none !important; }
+  a { color: inherit; text-underline-offset: 3px; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+  .wrap {
+    max-width: 1120px; margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  /* 제호 */
+  .masthead { background: var(--surface); border-bottom: 1px solid var(--line); }
+  .masthead .wrap { padding-block: 28px 0; display: grid; gap: 6px; }
+  .eyebrow { margin: 0; font: 600 12.5px/1.4 var(--body); letter-spacing: .04em; color: var(--muted); }
+  .eyebrow .en { font-family: var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+  h1 { margin: 0; font: 700 clamp(26px, 4.6vw, 38px)/1.2 var(--display); letter-spacing: -.01em; }
+  .about { margin: 2px 0 0; font-size: 14px; color: var(--muted); max-width: 78ch; }
+  .about a { color: var(--ink); }
+  .panels { display: flex; gap: 6px; overflow-x: auto; padding-block: 16px; scrollbar-width: thin; }
+  .panels button {
+    flex: none; display: inline-flex; align-items: baseline; gap: 6px;
+    font: 500 13.5px/1 var(--body); color: var(--muted); background: transparent;
+    border: 1px solid var(--line); border-radius: 999px; padding: 8px 13px; cursor: pointer;
+  }
+  .panels button .n { font: 500 12px/1 var(--mono); font-variant-numeric: tabular-nums; }
+  .panels button:hover { color: var(--ink); border-color: var(--muted); }
+  .panels button[aria-selected="true"] { color: var(--surface); background: var(--ink); border-color: var(--ink); }
+
+  main.wrap { padding-block: 24px 56px; display: grid; gap: 22px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px 22px 22px; min-width: 0; }
+
+  /* 그래프 머리 */
+  .chart-head { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 10px 20px; }
+  h2 { margin: 0; font: 700 22px/1.3 var(--display); }
+  .sub { margin: 2px 0 0; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .note { margin: 10px 0 0; font-size: 14px; max-width: 80ch; }
+  .views { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .views button { background: none; border: 0; padding: 6px 12px; font-size: 13.5px; color: var(--muted); cursor: pointer; }
+  .views button + button { border-left: 1px solid var(--line); }
+  .views button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+
+  /* 범례: 나라 버튼은 거르기도 한다 */
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  .legend .countries { display: flex; flex-wrap: wrap; gap: 6px; }
+  .legend button {
+    display: inline-flex; align-items: center; gap: 7px; background: none; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px 4px 9px; color: var(--ink); font-size: 13px;
+  }
+  .legend button .n { font: 500 12px/1 var(--mono); color: var(--muted); }
+  .legend button[aria-pressed="false"] { color: var(--muted); border-style: dashed; }
+  .legend button[aria-pressed="false"] .sw { background: transparent !important; }
+  .sw { width: 14px; height: 9px; border-radius: 3px; border: 2px solid var(--c); background: var(--c); flex: none; }
+  .key { display: inline-flex; align-items: center; gap: 6px; }
+  .key .sw { --c: var(--muted); }
+  .key .sw.hollow { background: var(--surface); }
+  .key .sw.fade { border-right-color: transparent; border-radius: 3px 0 0 3px; width: 20px;
+    -webkit-mask-image: linear-gradient(to right, #000 40%, transparent); mask-image: linear-gradient(to right, #000 40%, transparent); }
+  .key .sw.dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* 범위 막대 그래프 */
+  .chart { margin-top: 8px; }
+  .axis { display: grid; grid-template-columns: var(--lw) 1fr; gap: var(--gap); height: 26px; position: relative; }
+  .axis .unit { align-self: end; justify-self: end; font: 500 12px/1 var(--mono); color: var(--muted); padding: 0 12px 6px 0; }
+  .axis .ticks { position: relative; grid-column: 2; }
+  .axis .ticks span {
+    position: absolute; bottom: 6px; transform: translateX(-50%);
+    font: 400 12px/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap;
+  }
+  .axis.bottom .ticks span { top: 6px; bottom: auto; }
+  .group { position: relative; padding-top: 10px; }
+  .group + .group { margin-top: 6px; border-top: 1px dashed var(--line); }
+  .group h3 { margin: 0 0 4px; font: 600 13.5px/1.4 var(--body); display: flex; gap: 8px; align-items: baseline; }
+  .group h3 .n { font: 400 12px/1 var(--mono); color: var(--muted); }
+  .rows { position: relative; }
+  .gridlines { position: absolute; top: 0; bottom: 0; left: calc(var(--lw) + var(--gap)); right: 0; pointer-events: none; }
+  .gridlines i { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
+  .row {
+    display: grid; grid-template-columns: var(--lw) 1fr; gap: var(--gap); align-items: center;
+    min-height: 28px; text-decoration: none; border-radius: 4px; position: relative;
+  }
+  .row:hover, .row.on { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+  .label { display: flex; gap: 8px; align-items: baseline; min-width: 0; padding-left: 6px; font-size: 13px; }
+  .pn { font: 500 12.5px/1.3 var(--mono); white-space: nowrap; flex: none; }
+  .ap { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .track { position: relative; height: 28px; }
+  .mark {
+    position: absolute; top: 50%; height: 12px; margin-top: -6px; min-width: 6px;
+    border: 2px solid var(--c); background: var(--c); border-radius: 4px;
+  }
+  .mark.abstract { background: var(--surface); }
+  .mark.dot { width: 12px; border-radius: 50%; margin-left: -6px; min-width: 0; }
+  /* 한쪽 끝만 적힌 값: 적힌 끝에서 눈금 끝까지 그리고, 열린 쪽으로 갈수록 흐리게 */
+  .mark.ge { right: 0; min-width: 40px; border-right-color: transparent; border-radius: 4px 0 0 4px;
+    -webkit-mask-image: linear-gradient(to right, #000 35%, transparent); mask-image: linear-gradient(to right, #000 35%, transparent); }
+  .mark.le { left: 0; min-width: 40px; border-left-color: transparent; border-radius: 0 4px 4px 0;
+    -webkit-mask-image: linear-gradient(to left, #000 35%, transparent); mask-image: linear-gradient(to left, #000 35%, transparent); }
+  [data-country="KR"] { --c: var(--kr); }
+  [data-country="CN"] { --c: var(--cn); }
+  [data-country="US"] { --c: var(--us); }
+  .empty { margin: 18px 0 4px; color: var(--muted); font-size: 14px; }
+
+  /* 표 보기 */
+  .table-wrap { margin-top: 14px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  td.num, td.pn-cell { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+  td .sw { display: inline-block; vertical-align: middle; margin-right: 6px; }
+  tr.group-row td { background: color-mix(in srgb, var(--ink) 4%, transparent); font-weight: 600; }
+
+  /* 말풍선 */
+  #tip {
+    position: fixed; z-index: 10; max-width: min(360px, calc(100vw - 24px)); pointer-events: none;
+    background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px;
+    box-shadow: 0 6px 24px rgb(0 0 0 / .14); padding: 10px 12px; font-size: 13px; line-height: 1.5;
+  }
+  #tip.pinned { pointer-events: auto; }
+  #tip .t-head { display: flex; gap: 8px; align-items: center; font: 600 13px/1.4 var(--mono); }
+  #tip .t-ap { color: var(--muted); margin-bottom: 6px; }
+  #tip dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+  #tip dt { color: var(--muted); }
+  #tip dd { margin: 0; }
+  #tip .t-val { font-family: var(--mono); font-weight: 500; }
+  #tip .t-go { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; }
+
+  /* 읽는 법·만든 방법 */
+  .how h2, .method h2 { font-size: 19px; }
+  .how ul, .method ul { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px; max-width: 82ch; }
+  .method p { margin: 10px 0 0; max-width: 82ch; }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; font-weight: 600; }
+  .left-out { margin-top: 8px; }
+  .left-out td { font-size: 13px; }
+  footer.wrap { padding-bottom: 40px; font-size: 13px; color: var(--muted); }
+
+  @media (max-width: 720px) {
+    :root { --lw: 0px; --gap: 0px; }
+    .card { padding: 16px 14px 18px; }
+    .axis { grid-template-columns: 0 1fr; }
+    .axis .unit { position: absolute; right: 0; top: -14px; padding: 0; }
+    .row { grid-template-columns: 1fr; gap: 0; padding-top: 4px; }
+    .label { padding-left: 2px; }
+    .track { height: 22px; }
+  }
+</style>
+</head>
+<body>
+<header class="masthead">
+  <div class="wrap">
+    <p class="eyebrow"><span class="en">Patent Radar</span> · 청구항 숫자 지도</p>
+    <h1>청구항 숫자 지도</h1>
+    <p class="about">LFP 심층 리포트 두 편에 실린 ‘청구항에 나온 숫자’ 표를 그래프 7개로 옮겼어요.
+      막대 하나는 특허 하나가 보호받으려고 청구항(또는 초록)에 적은 범위예요. <strong>제품을 잰 값이 아니에요.</strong></p>
+    <p class="about">
+      <a href="./">← 오늘의 특허 레이더</a>
+      · <span id="report-links"></span>
+      · <a href="guide.html">특허가 처음이라면? 한 장 가이드</a>
+    </p>
+    <nav class="panels" id="panels" role="tablist" aria-label="그래프 고르기"></nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card" aria-labelledby="panel-title">
+    <div class="chart-head">
+      <div>
+        <h2 id="panel-title">불러오는 중…</h2>
+        <p class="sub" id="panel-sub"></p>
+      </div>
+      <div class="views" role="group" aria-label="보기 방식">
+        <button type="button" data-view="chart" aria-pressed="true">그래프</button>
+        <button type="button" data-view="table" aria-pressed="false">표</button>
+      </div>
+    </div>
+    <p class="note" id="panel-note"></p>
+    <div class="legend">
+      <div class="countries" id="countries" role="group" aria-label="나라 거르기 (누르면 숨기기·보이기)"></div>
+      <span class="key"><span class="sw"></span>청구항의 값</span>
+      <span class="key"><span class="sw hollow"></span>초록(요약문)의 값</span>
+      <span class="key"><span class="sw fade"></span>한쪽 끝만 적힘 (이상·이하)</span>
+      <span class="key"><span class="sw dot"></span>값 하나</span>
+    </div>
+    <div class="chart" id="chart"></div>
+    <div class="table-wrap" id="table" hidden></div>
+  </section>
+
+  <section class="card how">
+    <h2>읽는 법</h2>
+    <ul>
+      <li>막대의 왼쪽 끝과 오른쪽 끝이 특허가 적은 범위의 아래·위 값이에요. 막대에 마우스를 올리면(휴대폰은 한 번 누르면) 원래 문장과 출원인이 나오고, 누르면 원문이 열려요.</li>
+      <li>같은 그래프 안에서도 무리(제목 아래 묶음)마다 재는 대상이 달라요. 예를 들어 분말 압축 밀도와 극판 밀도는 같은 g/cm³이지만 비교하면 안 돼요.</li>
+      <li>색은 회사 국적이 아니라 특허를 낸 나라예요. 예를 들어 중국 회사가 한국에 낸 특허는 파란색(한국 특허)이에요.</li>
+      <li>청구항의 범위는 넓게 잡는 경우가 많아서, 범위가 넓다고 기술이 앞선 것은 아니에요. 여러 특허가 겹치는 구간이 업계가 많이 쓰는 영역이라고 짐작할 수는 있어요.</li>
+    </ul>
+  </section>
+
+  <section class="card method">
+    <h2>만든 방법</h2>
+    <p>심층 리포트를 쓸 때 숫자마다 청구항·초록 문장과 글자 그대로 대조해 표로 모았어요. 이 페이지는 그 표만 읽어서,
+      비교해도 뜻이 있는 7가지 주제로 나누고 같은 특허의 같은 숫자는 한 번만 그렸어요(코드:
+      <a href="https://github.com/ChoJiwon00/patent-radar/blob/main/patent_radar/claimmap.py" target="_blank" rel="noopener noreferrer">claimmap.py ↗</a>).
+      그래프로 옮긴 뒤에도 모든 숫자를 원래 청구항·초록에서 다시 찾아 확인했어요(2026-10-31).</p>
+    <ul>
+      <li>단위는 그래프마다 하나로 맞췄어요: nm로 적힌 입자 크기는 μm로, Å로 적힌 두께는 nm로, ppm은 wt%로(10,000 ppm = 1 wt%).</li>
+      <li>한 칸에 온도와 승온 속도(℃/분)가 같이 적혀 있으면 온도만 그렸어요.</li>
+      <li>표에 실린 숫자만 썼어요. 리포트 본문에만 나오는 숫자는 들어 있지 않아요.</li>
+    </ul>
+    <details>
+      <summary>그래프에서 뺀 값과 이유 (<span id="left-count">0</span>개)</summary>
+      <div class="table-wrap left-out" id="left-out"></div>
+    </details>
+  </section>
+</main>
+<footer class="wrap" id="made"></footer>
+
+<div id="tip" role="tooltip" hidden></div>
+
+<script>
+(() => {
+  const COUNTRY = { KR: "한국 특허", CN: "중국 특허", US: "미국 특허" };   // 특허를 낸 나라. 범주색 순서(파랑·주황·청록)와 같은 순서
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const state = { data: null, panel: null, view: "chart", hidden: new Set() };
+
+  // ---------------------------------------------------------------- 눈금
+  function niceStep(span, count) {
+    const raw = span / count, p = Math.pow(10, Math.floor(Math.log10(raw)));
+    for (const k of [1, 2, 2.5, 5, 10]) if (raw <= k * p) return k * p;
+    return 10 * p;
+  }
+  function fmt(v) { return (+v.toPrecision(6)).toString(); }
+
+  function makeScale(panel) {
+    const vals = [], open = [];
+    for (const g of panel.groups) for (const r of g.rows) {
+      if (r.low != null) vals.push(r.low);
+      if (r.high != null) vals.push(r.high);
+      if (r.open) open.push(r);
+    }
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    if (panel.scale === "log") {
+      const a = Math.floor(Math.log10(lo)), b = Math.ceil(Math.log10(hi));
+      const ticks = []; for (let e = a; e <= b; e++) ticks.push(Math.pow(10, e));
+      return { ticks, pos: (v) => (Math.log10(v) - a) / (b - a) * 100 };
+    }
+    const step = niceStep(hi - lo || 1, 6);
+    lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+    // 한쪽만 적힌 값이 눈금 끝에 붙으면 화살표가 안 보이니 한 칸 넓힌다
+    if (open.some((r) => r.open === "ge" && r.low > hi - step * 0.6)) hi += step;
+    if (open.some((r) => r.open === "le" && r.high < lo + step * 0.6) && lo - step >= 0) lo -= step;
+    const ticks = []; for (let v = lo; v <= hi + step / 1000; v += step) ticks.push(+v.toFixed(6));
+    return { ticks, pos: (v) => (v - lo) / (hi - lo) * 100 };
+  }
+
+  // ---------------------------------------------------------------- 그리기
+  function valueText(r, unit) {
+    return `${r.value}${/[a-zA-Zμ℃%³]/.test(r.value) ? "" : " " + unit}`;
+  }
+  function srcKind(r) { return r.source.startsWith("청구항") ? "claim" : "abstract"; }
+
+  function markHTML(r, scale) {
+    const cls = ["mark", srcKind(r) === "abstract" ? "abstract" : ""];
+    let style;
+    if (r.open === "ge") { cls.push("ge"); style = `left:${scale.pos(r.low)}%`; }
+    else if (r.open === "le") { cls.push("le"); style = `right:${100 - scale.pos(r.high)}%`; }
+    else if (r.low === r.high) { cls.push("dot"); style = `left:${scale.pos(r.low)}%`; }
+    else { const a = scale.pos(r.low), b = scale.pos(r.high); style = `left:${a}%;width:${b - a}%`; }
+    return `<span class="${cls.join(" ")}" style="${style}"></span>`;
+  }
+
+  function axisHTML(scale, unit, where) {
+    const ticks = scale.ticks.map((t) => `<span style="left:${scale.pos(t)}%">${fmt(t)}</span>`).join("");
+    return `<div class="axis ${where}"><span class="unit">${where === "top" ? esc(unit) : ""}</span><div class="ticks">${ticks}</div></div>`;
+  }
+
+  function visible(r) { return !state.hidden.has(r.country); }
+
+  function renderChart(panel) {
+    // axis "group": 무리마다 재는 대상이 달라(예: 분말 밀도와 극판 밀도) 눈금을 따로 그린다
+    const perGroup = panel.axis === "group";
+    const shared = perGroup ? null : makeScale(panel);
+    let html = perGroup ? "" : axisHTML(shared, panel.unit, "top"), shown = 0;
+    panel.groups.forEach((g, gi) => {
+      const rows = g.rows.map((r, ri) => [r, ri]).filter(([r]) => visible(r));
+      if (!rows.length) return;
+      shown += rows.length;
+      const scale = shared || makeScale({ ...panel, groups: [g] });
+      const lines = scale.ticks.map((t) => `<i style="left:${scale.pos(t)}%"></i>`).join("");
+      html += `<div class="group"><h3>${esc(g.label)} <span class="n">${rows.length}</span></h3>`
+        + (perGroup ? axisHTML(scale, panel.unit, "top") : "")
+        + `<div class="rows"><div class="gridlines" aria-hidden="true">${lines}</div>`;
+      for (const [r, ri] of rows) {
+        const label = `${r.patent}, ${r.applicant || ""}, ${r.item} ${valueText(r, panel.unit)}, 근거 ${r.source}. 원문 열기`;
+        html += `<a class="row" href="${esc(r.link)}" target="_blank" rel="noopener noreferrer" data-country="${r.country}" data-g="${gi}" data-r="${ri}" aria-label="${esc(label)}">`
+          + `<span class="label"><span class="pn">${esc(r.patent)}</span><span class="ap">${esc(r.applicant || "")}</span></span>`
+          + `<span class="track">${markHTML(r, scale)}</span></a>`;
+      }
+      html += `</div></div>`;
+    });
+    if (!perGroup) html += axisHTML(shared, panel.unit, "bottom");
+    $("#chart").innerHTML = shown ? html : `<p class="empty">나라를 하나 이상 골라 주세요.</p>`;
+  }
+
+  function renderTable(panel) {
+    let html = `<table><caption class="sub" style="text-align:left;caption-side:top;padding-bottom:6px">${esc(panel.title)} (${esc(panel.unit)}) · 막대마다 한 줄</caption>`
+      + `<thead><tr><th>특허 번호</th><th>출원인</th><th>특허 낸 나라</th><th>항목</th><th>값</th><th>근거</th><th>공개일</th></tr></thead><tbody>`;
+    for (const g of panel.groups) {
+      const rows = g.rows.filter(visible);
+      if (!rows.length) continue;
+      html += `<tr class="group-row"><td colspan="7">${esc(g.label)} (${rows.length})</td></tr>`;
+      for (const r of rows) {
+        html += `<tr data-country="${r.country}"><td class="pn-cell"><a href="${esc(r.link)}" target="_blank" rel="noopener noreferrer">${esc(r.patent)}</a></td>`
+          + `<td>${esc(r.applicant || "")}</td><td><span class="sw"></span>${COUNTRY[r.country] || ""}</td>`
+          + `<td>${esc(r.item)}${r.stage ? ` <span class="sub">(${esc(r.stage)})</span>` : ""}</td>`
+          + `<td class="num">${esc(valueText(r, panel.unit))}</td><td>${esc(r.source)}</td><td class="num">${esc(r.published || "")}</td></tr>`;
+      }
+    }
+    $("#table").innerHTML = html + "</tbody></table>";
+  }
+
+  function renderCountries(panel) {
+    const counts = {};
+    for (const g of panel.groups) for (const r of g.rows) counts[r.country] = (counts[r.country] || 0) + 1;
+    $("#countries").innerHTML = Object.keys(COUNTRY).map((c) =>
+      `<button type="button" data-country="${c}" data-c="${c}" aria-pressed="${!state.hidden.has(c)}">`
+      + `<span class="sw"></span>${COUNTRY[c]} <span class="n">${counts[c] || 0}</span></button>`).join("");
+  }
+
+  function render() {
+    const panel = state.data.panels.find((p) => p.id === state.panel);
+    document.querySelectorAll("#panels button").forEach((b) => b.setAttribute("aria-selected", b.dataset.id === panel.id));
+    $("#panel-title").textContent = panel.title;
+    const pats = new Set(panel.groups.flatMap((g) => g.rows.map((r) => r.patent)));
+    $("#panel-sub").textContent = `특허 ${pats.size}건 · 막대 ${panel.count}개 · 단위 ${panel.unit}${panel.scale === "log" ? " · 눈금 10배 간격" : ""}`;
+    $("#panel-note").textContent = panel.note;
+    renderCountries(panel);
+    $("#chart").hidden = state.view !== "chart";
+    $("#table").hidden = state.view !== "table";
+    if (state.view === "chart") renderChart(panel); else renderTable(panel);
+    hideTip();
+  }
+
+  // ---------------------------------------------------------------- 말풍선
+  const tip = $("#tip");
+  let tipRow = null;
+  function rowData(el) {
+    const panel = state.data.panels.find((p) => p.id === state.panel);
+    return [panel.groups[+el.dataset.g].rows[+el.dataset.r], panel];
+  }
+  function fillTip(el, pinned) {
+    const [r, panel] = rowData(el);
+    tip.innerHTML = `<div class="t-head" data-country="${r.country}"><span class="sw"></span>${esc(r.patent)}</div>`
+      + `<div class="t-ap">${esc(r.applicant || "")} · ${COUNTRY[r.country] || ""}${r.published ? ` · 공개 ${esc(r.published)}` : ""}</div>`
+      + `<dl><dt>항목</dt><dd>${esc(r.item)}</dd>`
+      + (r.stage ? `<dt>공정 단계</dt><dd>${esc(r.stage)}</dd>` : "")
+      + `<dt>값</dt><dd class="t-val">${esc(valueText(r, panel.unit))}</dd>`
+      + `<dt>근거</dt><dd>${esc(r.source)}</dd></dl>`
+      + (pinned ? `<p class="t-go"><a href="${esc(r.link)}" target="_blank" rel="noopener noreferrer">원문 열기 ↗</a></p>`
+                : `<p class="t-go">누르면 원문이 열려요</p>`);
+    tip.classList.toggle("pinned", !!pinned);
+    tip.hidden = false;
+    if (tipRow) tipRow.classList.remove("on");
+    tipRow = el; el.classList.add("on");
+  }
+  function placeTip(x, y) {
+    const w = tip.offsetWidth, h = tip.offsetHeight, m = 12;
+    let left = x + 16, top = y + 16;
+    if (left + w > innerWidth - m) left = Math.max(m, x - w - 16);
+    if (top + h > innerHeight - m) top = Math.max(m, y - h - 16);
+    tip.style.left = left + "px"; tip.style.top = top + "px";
+  }
+  function hideTip() {
+    tip.hidden = true;
+    if (tipRow) tipRow.classList.remove("on");
+    tipRow = null;
+  }
+
+  const chart = $("#chart");
+  let touch = false;
+  chart.addEventListener("pointerdown", (e) => { touch = e.pointerType !== "mouse"; });
+  chart.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse") return;
+    const el = e.target.closest(".row");
+    if (!el) { if (!tip.classList.contains("pinned")) hideTip(); return; }
+    if (el !== tipRow) fillTip(el, false);
+    placeTip(e.clientX, e.clientY);
+  });
+  chart.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse" && !tip.classList.contains("pinned")) hideTip(); });
+  chart.addEventListener("click", (e) => {
+    const el = e.target.closest(".row");
+    if (!el || !touch) return;
+    // 휴대폰: 처음 누르면 말풍선(원문 링크 포함), 같은 막대를 한 번 더 누르면 원문
+    if (tipRow === el && tip.classList.contains("pinned")) return;
+    e.preventDefault();
+    fillTip(el, true);
+    const box = el.querySelector(".mark").getBoundingClientRect();
+    placeTip(Math.min(box.left + 8, innerWidth - 24), box.bottom - 8);
+  });
+  chart.addEventListener("focusin", (e) => {
+    const el = e.target.closest(".row");
+    if (!el) return;
+    fillTip(el, false);
+    const box = el.querySelector(".mark").getBoundingClientRect();
+    placeTip(box.left, box.bottom);
+  });
+  chart.addEventListener("focusout", () => { if (!tip.classList.contains("pinned")) hideTip(); });
+  document.addEventListener("pointerdown", (e) => {
+    if (tip.classList.contains("pinned") && !tip.contains(e.target) && !e.target.closest(".row")) hideTip();
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideTip(); });
+  addEventListener("scroll", () => { if (!tip.classList.contains("pinned")) hideTip(); }, { passive: true });
+
+  // ---------------------------------------------------------------- 고르기
+  $("#panels").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    state.panel = b.dataset.id;
+    history.replaceState(null, "", "#" + state.panel);
+    render();
+  });
+  $("#panels").addEventListener("keydown", (e) => {
+    if (!["ArrowRight", "ArrowLeft"].includes(e.key)) return;
+    const ids = state.data.panels.map((p) => p.id);
+    const i = (ids.indexOf(state.panel) + (e.key === "ArrowRight" ? 1 : ids.length - 1)) % ids.length;
+    state.panel = ids[i];
+    history.replaceState(null, "", "#" + state.panel);
+    render();
+    document.querySelector(`#panels button[data-id="${state.panel}"]`).focus();
+  });
+  $("#countries").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    const c = b.dataset.c;
+    state.hidden.has(c) ? state.hidden.delete(c) : state.hidden.add(c);
+    render();
+    document.querySelector(`#countries button[data-c="${c}"]`).focus();
+  });
+  document.querySelectorAll(".views button").forEach((b) => b.addEventListener("click", () => {
+    state.view = b.dataset.view;
+    document.querySelectorAll(".views button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    render();
+  }));
+
+  // ---------------------------------------------------------------- 불러오기
+  fetch("data/claims.json").then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); }).then((data) => {
+    state.data = data;
+    const want = location.hash.slice(1);
+    state.panel = data.panels.some((p) => p.id === want) ? want : data.panels[0].id;
+    $("#panels").innerHTML = data.panels.map((p) =>
+      `<button type="button" role="tab" data-id="${p.id}" aria-selected="false">${esc(p.title)} <span class="n">${p.count}</span></button>`).join("");
+    $("#report-links").innerHTML = data.reports.map((r) =>
+      `<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">심층 리포트: ${esc(r.title)} ↗</a>`).join(" · ");
+    $("#left-count").textContent = data.left_out.length;
+    $("#left-out").innerHTML = `<table><thead><tr><th>특허</th><th>항목</th><th>값</th><th>뺀 이유</th></tr></thead><tbody>`
+      + data.left_out.map((l) => `<tr><td class="pn-cell">${esc(l.patent)}</td><td>${esc(l.item)}</td><td class="num">${esc(l.value)}</td><td>${esc(l.reason)}</td></tr>`).join("")
+      + `</tbody></table>`;
+    $("#made").textContent = `데이터 만든 날 ${data.made} · 막대 ${data.panels.reduce((n, p) => n + p.count, 0)}개 · 출처: Patent Radar 심층 리포트(KIPRIS·USPTO·Google Patents 원문)`;
+    render();
+  }).catch((err) => {
+    $("#panel-title").textContent = "데이터를 불러오지 못했어요";
+    $("#panel-sub").textContent = `data/claims.json (${err.message})`;
+  });
+})();
+</script>
+</body>
+</html>

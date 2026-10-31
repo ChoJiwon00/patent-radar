@@ -13,6 +13,7 @@
     python -m patent_radar patents report        GitHub에 올릴 보고서(reports/날짜.md)를 만든다
     python -m patent_radar patents usage         이번 달 KIPRIS 호출 수를 보여준다
     python -m patent_radar patents deep CONFIG --out FILE   주제 하나를 깊게 모은다 (매일 브리핑 기록에는 넣지 않음)
+    python -m patent_radar patents claimmap      심층 리포트의 청구항 숫자를 사이트 그래프용 데이터로 만든다
     python -m patent_radar stars sync FOLDER     페이지에서 별표한 관심 특허 목록과 맞춘다
     python -m patent_radar stars check           한국 관심 특허의 진행 상태를 다시 확인한다
     python -m patent_radar weekly stats          일주일 통계를 뽑는다 (주간 리포트용)
@@ -29,7 +30,7 @@ from pathlib import Path
 
 import httpx
 
-from . import briefing, db, deep, news, patents, stars, website, weekly
+from . import briefing, claimmap, db, deep, news, patents, stars, website, weekly
 from .config import KST, kipris_api_key, load_interests, load_news_settings, load_patent_settings
 
 
@@ -342,6 +343,14 @@ def cmd_patents_deep(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_patents_claimmap(args: argparse.Namespace) -> int:
+    docs_dir, reports_dir = claimmap.default_paths()
+    data = claimmap.export(docs_dir, reports_dir, date.today().isoformat())
+    counts = ", ".join(f"{p['title']} {p['count']}" for p in data["panels"])
+    print(f"청구항 숫자 지도를 만들었어요: docs/data/claims.json, docs/claims-density.svg ({counts} · 뺀 값 {len(data['left_out'])}개)")
+    return 0
+
+
 def cmd_site_export(args: argparse.Namespace) -> int:
     with db.session() as conn:
         index = website.export(conn)
@@ -416,6 +425,8 @@ def main() -> int:
     p_deep.add_argument("--details-foreign", type=int, default=25, help="나라(미국·중국)마다 상세를 가져올 특허 수")
     p_deep.add_argument("--no-details", action="store_true", help="검색만 하고 상세 조회는 하지 않기")
     p_deep.set_defaults(func=cmd_patents_deep)
+    p_cmap = pat_sub.add_parser("claimmap", help="심층 리포트의 청구항 숫자를 사이트 그래프(docs/claims.html)용 데이터로 만들기")
+    p_cmap.set_defaults(func=cmd_patents_claimmap)
 
     p_stars = sub.add_parser("stars", help="★ 관심 특허 맞추기·상태 확인")
     stars_sub = p_stars.add_subparsers(dest="action", required=True)

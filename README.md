@@ -19,8 +19,12 @@
 - 소성은 낮은 온도와 높은 온도에서 나눠 머무는 2단 소성과, 구간마다 기체를 바꾸는 특허가 반복돼요.
 - 청구항이 있는 32건 가운데 17건이 습식 분쇄·분무건조·소성을 함께 적었지만, 분급·체질(4건)·자성 이물(2건) 같은 마무리 품질 조건은 드물었어요.
 
+**청구항 숫자 지도: [그래프로 보기](https://chojiwon00.github.io/patent-radar/claims.html)**
+두 리포트에 나온 숫자 140개(밀도·입자 크기·탄소 함량·코팅 두께·소성 온도·분무건조 온도·철-인 비)를 특허마다 범위 막대로 그렸어요. [아래 그림](#청구항-숫자-지도)이 그중 분말 압축 밀도예요.
+
 **데모 사이트:** https://chojiwon00.github.io/patent-radar/ · [주간 리포트](https://chojiwon00.github.io/patent-radar/#weekly)
 · 매일 쌓이는 보고서: [`reports/`](reports/)
+· [청구항 숫자 지도](https://chojiwon00.github.io/patent-radar/claims.html)
 · 특허가 처음이라면: [한 장 가이드](https://chojiwon00.github.io/patent-radar/guide.html)
 
 [![Patent Radar 화면](docs/screenshot.png)](https://chojiwon00.github.io/patent-radar/)
@@ -34,6 +38,7 @@
 - **🔥 주목 특허 순위**: 여러 신호로 점수를 매겨, 점수가 높은 특허는 7일 동안 매일 맨 위에 순위와 함께 보여 줘요.
 - **주제 심층 리포트**: 기술 주제 하나를 정해 한·미·중 특허를 깊게 모으고(`patents deep`), 여러 AI 에이전트가 주제별로 읽은 뒤
   **다른 에이전트가 인용문과 숫자를 원문과 글자 그대로 대조**해 리포트로 써요. 매일 브리핑의 '본 특허' 기록에는 넣지 않아요.
+- **청구항 숫자 지도**: 심층 리포트의 숫자 표를 7가지 주제로 나눠 특허마다 범위 막대로 그려요(`patents claimmap`). 단위를 하나로 맞추고, 같은 숫자는 한 번만 그려요.
 - **뉴스 브리핑**: 세 주제의 기사 제목에서 같은 사건을 묶고, 주제마다 중요한 이야기 3~5개를 요약해요.
 - **주간 트렌드 리포트**: 매주 월요일, 일주일치 통계(자주 나온 기술·출원인·기술 분류)와 AI의 흐름 분석을 만들어요.
 - **관심 회사·관심 특허**: 양극재·전지 회사를 관심 회사로 두고, 페이지에서 ★ 별표한 특허는 등록 여부를 매주 확인해요.
@@ -44,6 +49,18 @@
 [웹에서 보기](https://chojiwon00.github.io/patent-radar/guide.html) · [이미지 내려받기](docs/guide.png) (1920×1080, 발표 자료에 그대로 붙일 수 있어요)
 
 [![특허 한 장 가이드](docs/guide.png)](https://chojiwon00.github.io/patent-radar/guide.html)
+
+## 청구항 숫자 지도
+
+심층 리포트 두 편의 '청구항에 나온 숫자' 표에서 비교해도 뜻이 있는 7가지(밀도, 입자 크기, 탄소 함량, 코팅 두께, 소성 온도, 분무건조 온도, 철-인 비)를 골라
+특허마다 범위 막대로 그렸어요. 페이지에서 막대에 마우스를 올리면 원래 문장과 출원인이 나오고, 누르면 원문이 열려요.
+[그래프 페이지](https://chojiwon00.github.io/patent-radar/claims.html) · 데이터 [`docs/data/claims.json`](docs/data/claims.json) · 코드 [`patent_radar/claimmap.py`](patent_radar/claimmap.py)
+
+[![청구항에 적힌 LFP 분말 압축 밀도 범위](docs/claims-density.svg)](https://chojiwon00.github.io/patent-radar/claims.html)
+
+- 숫자는 리포트를 쓸 때 원문과 대조했고, 그래프로 옮긴 뒤에도 140개 모두 원래 청구항·초록에서 다시 찾아 확인했어요.
+- 막대는 특허가 보호받으려는 범위예요. 제품을 잰 값이 아니고, 재는 조건(누르는 힘 등)도 특허마다 달라요.
+- 색은 회사 국적이 아니라 특허를 낸 나라예요(중국 회사가 한국에 낸 특허는 파란색).
 
 ## 동작 방식
 
@@ -114,7 +131,7 @@ patent-radar/
 ├─ artifact/briefing.html    브리핑 페이지 (claude.ai와 GitHub Pages가 함께 씀)
 ├─ config/topics.toml        뉴스 주제·검색어·IPC 분류·관심 회사·관심 키워드·특허 검색 설정
 ├─ config/deep/              주제 심층 리포트의 검색어 설정
-├─ docs/                     GitHub Pages 공개 사이트 (index.html + data/, 특허 한 장 가이드 guide.html)
+├─ docs/                     GitHub Pages 공개 사이트 (index.html + data/, 특허 한 장 가이드 guide.html, 청구항 숫자 지도 claims.html)
 ├─ reports/                  날짜별 특허 브리핑, 주간 리포트(weekly/), 주제 심층 리포트(deep/)
 ├─ patent_radar/
 │  ├─ __main__.py            명령줄 진입점
@@ -122,6 +139,7 @@ patent-radar/
 │  ├─ briefing.py            AI 뉴스 브리핑 검사·저장
 │  ├─ patents.py             KIPRIS 검색, 걸러내기, 주목도 점수, 요약 저장, 보고서
 │  ├─ deep.py                주제 심층 리포트용 특허 모으기
+│  ├─ claimmap.py            심층 리포트의 숫자 표 → 청구항 숫자 지도 데이터·그림
 │  ├─ stars.py               ★ 관심 특허 동기화·진행 상태 확인
 │  ├─ weekly.py              주간 통계·AI 분석·보고서
 │  ├─ website.py             GitHub Pages 사이트 만들기
@@ -150,6 +168,8 @@ copy .env.example .env
 
 # 공개 사이트 만들기 (docs/)
 .venv\Scripts\python -m patent_radar site export
+# 청구항 숫자 지도 데이터 다시 만들기 (심층 리포트를 고쳤을 때만, KIPRIS를 부르지 않아요)
+.venv\Scripts\python -m patent_radar patents claimmap
 
 # 테스트
 .venv\Scripts\python -m pytest
