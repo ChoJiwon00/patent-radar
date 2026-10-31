@@ -40,11 +40,20 @@ def test_mixed_nm_and_um_range_becomes_um():
 
 @pytest.mark.parametrize("item, stage, panel, group", [
     ("분말 압축 밀도(3T)", None, "density", "분말 압축 밀도 (누르는 힘 적힘)"),
+    ("압연 밀도(2,000kgf)", None, "density", "분말 압축 밀도 (누르는 힘 적힘)"),
+    ("펠렛 밀도(40–60 MPa)", None, "density", "분말 압축 밀도 (누르는 힘 적힘)"),
+    ("압연 밀도", None, "density", "압축·다짐 밀도 (조건 안 적힘·초록 값)"),  # LG화학 특허의 압연 밀도는 가루의 값
     ("극판 압축 밀도", None, "density", "극판·막층 밀도"),
     ("본 소결 1단계 온도 / 보온 시간", "소성", "sinter", cm.SINTER_LATE),
     ("1차 소결 온도", "소성", "sinter", cm.SINTER_EARLY),
     ("2차 소성 승온 속도 / 도달 온도", "소성", "sinter", cm.SINTER_LATE),
     ("소결 온도", "소성", "sinter", "단계 구분 없음"),
+    ("정온 구간 소결 온도", "소성", "sinter", "단계 구분 없음"),  # 한 번 굽는 동안의 구간
+    ("2단 중 고온 단계 소결 온도", None, "sinter", cm.SINTER_LATE),
+    ("혼합 후 소결 온도 / 승온 속도(질소)", "소성", "sinter", "단계 구분 없음"),
+    ("분무 온도", "분무건조", "spray", "입구·출구 구분 없음"),
+    ("제1 인산철 결정립 크기", "원료·전구체", "d50", "원료 1차 입자·결정립"),
+    ("1차 입자 평균 입경", None, "d50", "완제품 1차 입자"),
     ("분쇄 뒤 D50", "분쇄·혼합", "d50", "분쇄 뒤 슬러리"),
     ("작은 입자 D50", None, "d50", "완제품 속 큰·작은 입자"),
     ("자유 탄소 함량", None, "carbon", "자유 탄소"),
@@ -64,6 +73,11 @@ def test_classify_puts_items_in_the_right_group(item, stage, panel, group):
 def test_classify_leaves_out_values_that_cannot_be_compared_with_a_reason(item, stage):
     targets, reason = cm._classify(row(item, "1", stage=stage))
     assert targets == [] and reason
+
+
+def test_temperature_with_heating_rate_uses_the_temperature_part():
+    targets, _ = cm._classify(row("혼합 후 소결 온도 / 승온 속도(질소)", "700–850℃ / 3℃/min", stage="소성"))
+    assert cm.parse_value(cm._part("700–850℃ / 3℃/min", targets[0][2])) == [(700.0, 850.0, None)]
 
 
 def test_spray_inlet_outlet_pair_splits_into_two_groups():
@@ -92,7 +106,8 @@ def test_reports_build_into_seven_panels_without_heating_rates_or_bad_units():
             assert 0.3 <= (m.low or m.high) <= 4.0  # 탭 밀도는 1 아래도 있음
         if m.panel == "carbon":
             assert (m.high or m.low) <= 10
-    keys = [(m.panel, m.group, m.row.patent, m.low, m.high, m.open) for m in marks]
+    # 같은 특허의 같은 숫자는 한 번만. 탄소는 같은 숫자가 다른 양(코팅층 속 탄소, 넣는 탄소)을 뜻할 수 있어 무리가 다르면 따로 둔다.
+    keys = [(m.panel, m.group if m.panel == "carbon" else "", m.row.patent, m.low, m.high, m.open) for m in marks]
     assert len(keys) == len(set(keys))
 
 
