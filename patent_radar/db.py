@@ -94,12 +94,19 @@ CREATE TABLE IF NOT EXISTS patent_briefings (
     created_at TEXT NOT NULL
 );
 
--- KIPRIS 무료 한도(서비스별 월 1,000회)를 넘지 않게 호출 수를 센다.
+-- KIPRIS 무료 한도(계정 하나에 국내·해외 합쳐 월 1,000회)를 넘지 않게 호출 수를 센다.
 CREATE TABLE IF NOT EXISTS api_usage (
     month   TEXT NOT NULL,                 -- YYYY-MM
     service TEXT NOT NULL,                 -- kr / foreign
     calls   INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (month, service)
+);
+
+-- KIPRIS가 '한도 초과'(오류 22)로 거부한 달. 그 달에는 더 부르지 않는다.
+CREATE TABLE IF NOT EXISTS api_blocks (
+    month      TEXT PRIMARY KEY,           -- YYYY-MM
+    reason     TEXT NOT NULL,              -- KIPRIS가 보낸 오류 메시지
+    created_at TEXT NOT NULL
 );
 """
 

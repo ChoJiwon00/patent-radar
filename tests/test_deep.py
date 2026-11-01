@@ -136,18 +136,20 @@ def test_deep_run_only_counts_calls_and_never_touches_the_patents_table(tmp_path
     assert kr["ipc"] == "H01M4/58"                             # 상세에 분류가 없어도 검색의 분류를 지킴
 
 
-def test_deep_run_stops_calling_at_the_monthly_limit_and_keeps_going():
+def test_deep_run_stops_at_the_combined_monthly_limit_and_keeps_going():
     conn, requests = db.connect(":memory:"), []
     http = httpx.Client(transport=httpx.MockTransport(fake_kipris(requests)))
-    client = KiprisClient(conn, "KEY", PatentSettings(monthly_call_limit=1), http)
-    topic = deep.DeepTopic("t", [deep.DeepQuery("g1", "가", None, ("KR",)), deep.DeepQuery("g2", "나", None, ("KR",))])
+    client = KiprisClient(conn, "KEY", PatentSettings(monthly_call_limit=2), http)
+    topic = deep.DeepTopic("t", [deep.DeepQuery("g1", "가", '"a"', ("KR", "US")), deep.DeepQuery("g2", "나", None, ("KR",))])
 
     hits, runs = deep.collect(client, topic, today=date(2026, 10, 23), log=lambda *_: None)
-    warnings = deep.fill_details(client, deep.pick_for_details(hits, {"KR": 5}), log=lambda *_: None)
+    warnings = deep.fill_details(client, deep.pick_for_details(hits, {"KR": 5, "US": 5}), log=lambda *_: None)
 
-    assert len(requests) == 1 and conn.execute("SELECT calls FROM api_usage").fetchone()[0] == 1
-    assert "error" not in runs[0] and "상한" in runs[1]["error"]   # 두 번째 검색어는 한도로 멈춤(오류로 기록)
-    assert len(warnings) == 1 and "상한" in warnings[0]             # 상세 조회도 부르지 않고 경고만
+    # 상한은 국내·해외 합계로 센다: 국내 1회 + 해외 1회로 2회가 차서 세 번째(국내) 검색부터는 부르지 않는다.
+    usage = {r["service"]: r["calls"] for r in conn.execute("SELECT service, calls FROM api_usage")}
+    assert len(requests) == 2 and usage == {"kr": 1, "foreign": 1}
+    assert ["error" in r for r in runs] == [False, False, True] and "상한" in runs[2]["error"]  # 오류로 기록하고 계속
+    assert len(warnings) == 2 and all("상한" in w for w in warnings)  # 상세 조회도 부르지 않고 경고만
 
 
 def test_recent_years_looks_at_published_date_only(monkeypatch):

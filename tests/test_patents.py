@@ -262,6 +262,7 @@ def test_keywords_from_briefing_alternate_topics(conn):
     assert source == "2026-10-21"
     assert [k.ko for k in picked] == ["a1", "b1", "a2", "b2"]
     assert [k.countries for k in picked] == [("KR", "US", "CN"), ("KR", "US", "CN"), ("KR",), ("KR",)]
+    assert [k.rank for k in picked] == [1, 1, 2, 2]  # 그 주제에서 몇 번째 키워드인지
 
 
 def test_collect_searches_only_the_keywords_countries(conn):

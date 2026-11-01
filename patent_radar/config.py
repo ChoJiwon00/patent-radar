@@ -85,7 +85,10 @@ class PatentSettings:
     hot_threshold: int = 5
     hot_window_days: int = 7
     spotlight_size: int = 5
+    # KIPRIS 무료 한도는 계정 하나에 국내·해외를 합쳐 월 1,000회다. 상한도 국내·해외 합계로 센다.
     monthly_call_limit: int = 950
+    free_monthly_limit: int = 1000  # 화면에 보여 주기만 한다
+    daily_call_limit: int = 0  # 하루 호출 예산. 0이면 자동: 남은 횟수 ÷ 이번 달 남은 날짜
 
 
 def load_patent_settings(path: Path = TOPICS_PATH) -> PatentSettings:

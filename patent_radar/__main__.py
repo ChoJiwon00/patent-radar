@@ -11,7 +11,7 @@
     python -m patent_radar patents save-summaries FILE   AI가 쓴 한국어 요약을 저장한다
     python -m patent_radar patents export FILE   claude.ai 브리핑 페이지에 올릴 JSON을 만든다
     python -m patent_radar patents report        GitHub에 올릴 보고서(reports/날짜.md)를 만든다
-    python -m patent_radar patents usage         이번 달 KIPRIS 호출 수를 보여준다
+    python -m patent_radar patents usage         이번 달 KIPRIS 호출 수(국내+해외 합계)와 오늘 하루 예산을 보여준다
     python -m patent_radar patents deep CONFIG --out FILE   주제 하나를 깊게 모은다 (매일 브리핑 기록에는 넣지 않음)
     python -m patent_radar patents claimmap      심층 리포트의 청구항 숫자를 사이트 그래프용 데이터로 만든다
     python -m patent_radar stars sync FOLDER     페이지에서 별표한 관심 특허 목록과 맞춘다
@@ -101,11 +101,29 @@ def _day(value: str | None) -> date:
     return date.fromisoformat(value) if value else datetime.now(KST).date()
 
 
-def _print_usage(conn) -> None:
+def _print_usage(conn, budget: int | None = None, used: int | None = None) -> None:
+    """이번 달 호출 수와 하루 예산. 특허 검색 뒤에는 그 실행의 예산(budget)과 쓴 횟수(used)를 넘긴다."""
     settings = load_patent_settings()
-    for service, name in patents.SERVICE_NAMES.items():
-        used = patents.calls_this_month(conn, service)
-        print(f"이번 달 {name} 호출: {used}회 (설정한 상한 {settings.monthly_call_limit}회, 무료 한도 1,000회)")
+    kr, foreign = (patents.calls_this_month(conn, s) for s in ("kr", "foreign"))
+    total = kr + foreign
+    print(f"이번 달 KIPRIS 호출: 국내 {kr}회 + 해외 {foreign}회 = {total}회 "
+          f"(설정한 상한 {settings.monthly_call_limit}회, 무료 한도는 계정 합계 {settings.free_monthly_limit:,}회)")
+    blocked = patents.quota_block(conn)
+    if blocked:
+        print("⚠ KIPRIS가 이번 달 한도 초과로 호출을 거부했어요. 매월 1일에 다시 열려요.")
+    if used is not None:
+        # 실행 뒤에 다시 계산하면 방금 쓴 만큼 줄어든 값이 나와서, 실행을 시작할 때 정한 예산을 그대로 보여 준다.
+        print(f"오늘 하루 예산: {budget}회 중 {used}회 씀" if budget is not None
+              else "오늘 하루 예산: 없음 (직접 준 키워드라 월 상한만 지켜요)")
+        return
+    if blocked:
+        print("지금 실행하면 쓸 하루 예산: 0회 (거부당한 달이라 부르지 않아요)")
+        return
+    today = datetime.now(KST).date()
+    remaining = max(settings.monthly_call_limit - total, 0)
+    cap = f", 하루 상한 {settings.daily_call_limit}회" if settings.daily_call_limit > 0 else ""
+    print(f"지금 실행하면 쓸 하루 예산: {patents.daily_budget(conn, settings, today)}회 "
+          f"(남은 {remaining}회 ÷ 남은 {patents.days_left_in_month(today)}일{cap})")
 
 
 def cmd_patents_search(args: argparse.Namespace) -> int:
@@ -141,8 +159,24 @@ def cmd_patents_search(args: argparse.Namespace) -> int:
             print(f"고정 관심 키워드 {len(interests.keywords)}개도 함께 찾아요.")
         ipc_by_topic = {t.name: t.ipc for t in load_news_settings().topics}
 
+        # 매일 브리핑은 하루 예산 안에서만 부른다. 직접 준 키워드는 예산 없이 월 상한만 지킨다.
+        # 호출 수는 실제 날짜의 달로 세므로 --day와 상관없이 오늘로 예산을 정한다.
+        budget = None
+        if not args.keyword:
+            budget = patents.daily_budget(conn, settings)
+            # 검색 한 번과 그 검색에서 고른 새 특허의 상세 한 번을 할 수 있어야 찾는다 (collect도 같은 규칙).
+            if budget < 2:
+                print("이번 달 남은 호출이 모자라 오늘은 특허를 찾지 않아요 (KIPRIS를 부르지 않았어요).")
+                # 전날 결과 파일을 오늘 것으로 잘못 읽지 않게 오늘 목록(없으면 빈 목록)으로 바꿔 둔다.
+                Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+                Path(args.out).write_text(json.dumps(patents.for_claude(conn, day), ensure_ascii=False, indent=2),
+                                          encoding="utf-8")
+                _print_usage(conn, budget, 0)
+                return 3
+            print(f"오늘 하루 호출 예산 {budget}회 안에서 중요한 검색부터 해요.")
+
         with httpx.Client(timeout=30) as http:
-            client = patents.KiprisClient(conn, key, settings, http)
+            client = patents.KiprisClient(conn, key, settings, http, budget)
             content = patents.collect(conn, client, keywords, day, settings, ipc_by_topic, interests.companies)
 
         result = patents.for_claude(conn, day)
@@ -157,17 +191,19 @@ def cmd_patents_search(args: argparse.Namespace) -> int:
         for w in content["warnings"]:
             print(f"  - {w}")
         print(f"자세한 내용: {args.out}")
-        _print_usage(conn)
+        print(f"이번 실행 호출: 국내 {client.run_calls['kr']}회, 해외 {client.run_calls['foreign']}회")
+        _print_usage(conn, budget, sum(client.run_calls.values()))
+        if content["quota_stop"]:
+            print("⚠ KIPRIS 이번 달 한도가 끝나 특허 검색을 멈췄어요. 새 특허가 0건이면 페이지·GitHub에 올리지 말고 보고만 하세요.")
+            return 3
     return 0
 
 
 def cmd_patents_rescore(args: argparse.Namespace) -> int:
-    """검색 없이 그날 특허의 주목도 순위를 다시 매긴다 (관련도 판정을 저장한 뒤에 쓴다)."""
-    key = kipris_api_key() or ""
+    """검색 없이 그날 특허의 주목도 순위를 다시 매긴다 (관련도 판정을 저장한 뒤에 쓴다). KIPRIS는 부르지 않는다."""
     day = _day(args.day)
-    with db.session() as conn, httpx.Client(timeout=30) as http:
-        client = patents.KiprisClient(conn, key, load_patent_settings(), http)
-        content = patents.collect(conn, client, [], day, load_patent_settings(), companies=load_interests().companies)
+    with db.session() as conn:
+        content = patents.collect(conn, None, [], day, load_patent_settings(), companies=load_interests().companies)
     hot = sum(1 for i in content["items"] if i["rank"])
     print(f"{day} 순위를 다시 매겼어요: 🔥 주목 특허 {hot}건")
     return 0
@@ -329,14 +365,34 @@ def cmd_patents_deep(args: argparse.Namespace) -> int:
         return 2
     topic = deep.load_topic(args.config)
     per_country = {"KR": args.details_kr, "US": args.details_foreign, "CN": args.details_foreign}
-    with db.session() as conn, httpx.Client(timeout=30) as http:
-        before = {s: patents.calls_this_month(conn, s) for s in ("kr", "foreign")}
-        client = patents.KiprisClient(conn, key, load_patent_settings(), http)
-        hits, runs = deep.collect(client, topic, rows=args.rows)
-        chosen = deep.pick_for_details(hits, per_country) if not args.no_details else []
-        warnings = deep.fill_details(client, chosen)
-        after = {s: patents.calls_this_month(conn, s) for s in ("kr", "foreign")}
-        data = deep.to_json(topic, hits, runs, warnings, {"before": before, "after": after})
+    settings = load_patent_settings()
+    with db.session() as conn:
+        # 심층 모으기는 하루 예산 없이 한 번에 많이 부르므로, 시작하기 전에 이번 달 남은 횟수와 견준다.
+        blocked = patents.quota_block(conn)
+        if blocked:
+            print(f"KIPRIS가 이번 달 한도 초과로 호출을 거부해서 시작하지 않아요 ({blocked}). 매월 1일에 다시 열려요.")
+            return 3
+        # 상세 조회는 검색어에 실제로 나오는 나라만 센다 (한국 전용 주제에 미국·중국 몫을 더하지 않게).
+        countries = {c for q in topic.queries for c in q.countries}
+        estimate = sum(len(q.countries) for q in topic.queries) + (
+            0 if args.no_details else sum(n for c, n in per_country.items() if c in countries))
+        remaining = max(settings.monthly_call_limit - patents.calls_total_this_month(conn), 0)
+        if estimate > remaining:
+            print(f"이번 달 남은 호출이 모자라 시작하지 않아요 (예상 최대 {estimate}회 > 남은 {remaining}회). "
+                  "상세 조회 수(--details-kr·--details-foreign)를 줄이거나 --no-details를 쓰세요.")
+            return 3
+        today = datetime.now(KST).date()
+        print(f"예상 최대 {estimate}회: 남은 한도 {remaining}회 → {remaining - estimate}회, 이번 달 남은 날의 하루 예산 약 "
+              f"{patents.per_day_budget(remaining, settings, today)}회 → "
+              f"{patents.per_day_budget(remaining - estimate, settings, today)}회")
+        with httpx.Client(timeout=30) as http:
+            before = {s: patents.calls_this_month(conn, s) for s in ("kr", "foreign")}
+            client = patents.KiprisClient(conn, key, settings, http)
+            hits, runs = deep.collect(client, topic, rows=args.rows)
+            chosen = deep.pick_for_details(hits, per_country) if not args.no_details else []
+            warnings = deep.fill_details(client, chosen)
+            after = {s: patents.calls_this_month(conn, s) for s in ("kr", "foreign")}
+            data = deep.to_json(topic, hits, runs, warnings, {"before": before, "after": after})
     deep.save(data, args.out)
     used = {s: after[s] - before[s] for s in after}
     print(f"{topic.name}: 특허 {len(hits)}건(상세 {len(chosen)}건) → {args.out} · 이번 호출 국내 {used['kr']}회, 해외 {used['foreign']}회")
@@ -415,7 +471,7 @@ def main() -> int:
     p_report = pat_sub.add_parser("report", help="GitHub에 올릴 보고서(reports/날짜.md) 만들기")
     p_report.add_argument("--day", help="YYYY-MM-DD (기본: 오늘)")
     p_report.set_defaults(func=cmd_patents_report)
-    p_usage = pat_sub.add_parser("usage", help="이번 달 KIPRIS 호출 수")
+    p_usage = pat_sub.add_parser("usage", help="이번 달 KIPRIS 호출 수와 오늘 하루 예산")
     p_usage.set_defaults(func=cmd_patents_usage)
     p_deep = pat_sub.add_parser("deep", help="주제 하나를 깊게 모으기 (심층 리포트용, 매일 브리핑 기록에는 넣지 않음)")
     p_deep.add_argument("config", help="config/deep/ 아래 주제 설정(TOML)")

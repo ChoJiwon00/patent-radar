@@ -18,8 +18,11 @@
 AI가 '관련 낮음'으로 판정한 특허는 순위에서 뺀다.
 
 청구항·초록 같은 상세 정보는 브리핑에 넣을 특허만 따로 가져와서 무료 호출 한도를 아낀다.
+무료 한도는 계정 하나에 국내·해외를 합쳐 월 1,000회라서, 하루 예산(남은 횟수 ÷ 이번 달 남은 날짜) 안에서
+중요한 검색부터 한다 (prioritize 참고).
 """
 
+import calendar
 import html
 import json
 import re
@@ -39,7 +42,7 @@ FOREIGN_BIBLIO = "http://plus.kipris.or.kr/openapi/rest/ForeignPatentBibliograph
 COUNTRIES = ("KR", "US", "CN")
 COUNTRY_NAMES = {"KR": "한국", "US": "미국", "CN": "중국", "JP": "일본", "EP": "유럽", "DE": "독일", "TW": "대만",
                  "GB": "영국", "FR": "프랑스"}
-# 무료 한도는 국내 서비스와 해외 서비스를 따로 센다.
+# 호출 수는 서비스별로 적지만, 무료 한도는 계정 하나에 국내·해외를 합쳐 센다.
 SERVICE_NAMES = {"kr": "국내 특허", "foreign": "해외 특허"}
 MANY_CLAIMS = 20
 BUZZ_ARTICLES = 4  # 키워드가 나온 뉴스 이야기의 기사가 이만큼 많으면 화제 기술로 본다
@@ -49,11 +52,20 @@ class KiprisError(RuntimeError):
     """KIPRIS 호출 실패. 메시지에 인증키가 들어가지 않게 만든다."""
 
 
+class KiprisQuotaError(KiprisError):
+    """이번 달 호출을 더 할 수 없다. KIPRIS가 한도 초과(오류 22)로 거부했거나, 국내·해외 합계가 설정한 상한에
+    닿았거나, 이미 거부당한 달이다."""
+
+
+class KiprisBudgetError(KiprisError):
+    """이번 실행의 하루 호출 예산을 다 썼다."""
+
+
 @dataclass(frozen=True)
 class Keyword:
     ko: str
     en: str
-    # 이 키워드로 검색할 나라. 한국은 무료 한도에 여유가 있어 해외보다 키워드를 더 쓴다.
+    # 이 키워드로 검색할 나라. 해외는 키워드 하나에 미국·중국 두 번을 불러서 한국보다 적은 키워드로만 찾는다.
     countries: tuple[str, ...] = ("KR", "US", "CN")
     # 뉴스 브리핑의 주제(이차전지/ESS/반도체). 주제에 맞는 특허 분류(IPC)만 남길 때 쓴다.
     topic: str | None = None
@@ -63,6 +75,9 @@ class Keyword:
     buzz: int = 0
     # 뉴스와 상관없이 매일 찾는 고정 관심 키워드인지
     interest: bool = False
+    # 뉴스 브리핑에서 그 주제의 몇 번째 키워드인지 (1 = 첫째). 0은 직접 준 키워드나 고정 관심 키워드.
+    # 하루 예산이 모자랄 때 어떤 검색부터 할지 정한다.
+    rank: int = 0
 
     @classmethod
     def parse(cls, text: str) -> "Keyword":
@@ -163,7 +178,9 @@ def check_response(root: ET.Element) -> None:
     code = (root.findtext(".//resultCode") or "").strip()
     if code not in ("", "00"):
         msg = (root.findtext(".//resultMsg") or "").strip()
-        raise KiprisError(f"KIPRIS 오류 {code}: {msg or '자세한 이유가 없어요'}")
+        # 22는 이번 달 무료 한도를 다 써서 거부한 것이다. 그 달에는 다시 불러도 계속 거부된다.
+        error = KiprisQuotaError if code == "22" else KiprisError
+        raise error(f"KIPRIS 오류 {code}: {msg or '자세한 이유가 없어요'}")
 
 
 def _kr_number(open_no: str | None, reg_no: str | None, app_no: str) -> str:
@@ -341,19 +358,70 @@ def calls_this_month(conn: sqlite3.Connection, service: str, month: str | None =
     return row["calls"] if row else 0
 
 
-class KiprisClient:
-    """KIPRIS Plus 호출. 서비스별 월 호출 수를 세고 설정한 상한에서 멈춘다."""
+def calls_total_this_month(conn: sqlite3.Connection, month: str | None = None) -> int:
+    """국내·해외를 합친 이번 달 호출 수. 무료 한도와 상한은 이 합계로 센다."""
+    return sum(calls_this_month(conn, service, month) for service in SERVICE_NAMES)
 
-    def __init__(self, conn: sqlite3.Connection, key: str, settings: PatentSettings, http: httpx.Client):
+
+def quota_block(conn: sqlite3.Connection, month: str | None = None) -> str | None:
+    """KIPRIS가 그 달 호출을 한도 초과로 거부했으면 그 이유, 아니면 None."""
+    month = month or datetime.now(KST).strftime("%Y-%m")
+    row = conn.execute("SELECT reason FROM api_blocks WHERE month = ?", (month,)).fetchone()
+    return row["reason"] if row else None
+
+
+def days_left_in_month(today: date) -> int:
+    """오늘을 포함한 이번 달 남은 날짜 수."""
+    return calendar.monthrange(today.year, today.month)[1] - today.day + 1
+
+
+def per_day_budget(remaining: int, settings: PatentSettings, today: date) -> int:
+    """남은 횟수를 이번 달 남은 날짜로 고르게 나눈 하루 몫. 하루 상한을 적어 두었으면 그보다 많이 쓰지 않는다."""
+    auto = max(remaining, 0) // days_left_in_month(today)
+    return min(auto, settings.daily_call_limit) if settings.daily_call_limit > 0 else auto
+
+
+def daily_budget(conn: sqlite3.Connection, settings: PatentSettings, today: date | None = None) -> int:
+    """오늘 하루 쓸 수 있는 호출 수. KIPRIS가 이번 달 호출을 거부했으면 0."""
+    today = today or datetime.now(KST).date()
+    month = today.strftime("%Y-%m")
+    if quota_block(conn, month):
+        return 0
+    return per_day_budget(settings.monthly_call_limit - calls_total_this_month(conn, month), settings, today)
+
+
+class KiprisClient:
+    """KIPRIS Plus 호출. 국내·해외를 합친 월 호출 수를 세고 설정한 상한에서 멈춘다.
+
+    budget: 이번 실행에서 쓸 수 있는 호출 수(하루 예산). None이면 월 상한만 지킨다.
+    KIPRIS가 한도 초과(오류 22)로 거부하면 그 달을 api_blocks에 적고, 그 달에는 더 부르지 않는다.
+    """
+
+    def __init__(self, conn: sqlite3.Connection, key: str, settings: PatentSettings, http: httpx.Client,
+                 budget: int | None = None):
         self.conn, self.key, self.settings, self.http = conn, key, settings, http
+        self.budget = budget
+        self.run_calls = {"kr": 0, "foreign": 0}  # 이번 실행에서 부른 횟수
+        self.blocked: str | None = None  # 이번 달 호출을 멈춘 이유
+
+    def remaining(self) -> int | None:
+        """하루 예산에서 남은 호출 수. 예산을 정하지 않았으면 None."""
+        if self.budget is None:
+            return None
+        return max(self.budget - sum(self.run_calls.values()), 0)
 
     def _call(self, service: str, url: str, params: dict) -> ET.Element:
         month = datetime.now(KST).strftime("%Y-%m")
-        used = calls_this_month(self.conn, service, month)
+        # 거부당한 달에 더 부르면 호출 수만 늘고 결과는 없다. 아래 세 경우는 부르지도 세지도 않는다.
+        self.blocked = self.blocked or quota_block(self.conn, month)
+        if self.blocked:
+            raise KiprisQuotaError(self.blocked)
+        used = calls_total_this_month(self.conn, month)
         if used >= self.settings.monthly_call_limit:
-            raise KiprisError(
-                f"이번 달 {SERVICE_NAMES[service]} 호출이 {used}회라 멈췄어요 (설정한 상한 {self.settings.monthly_call_limit}회)"
-            )
+            self.blocked = f"이번 달 국내·해외 합계 {used}회가 설정한 상한 {self.settings.monthly_call_limit}회에 닿았어요"
+            raise KiprisQuotaError(self.blocked)
+        if self.remaining() == 0:
+            raise KiprisBudgetError(f"이번 실행의 하루 호출 예산 {self.budget}회를 다 썼어요")
         # 실패한 호출도 KIPRIS 쪽에서는 세므로 먼저 기록한다.
         self.conn.execute(
             """INSERT INTO api_usage (month, service, calls) VALUES (?, ?, 1)
@@ -361,6 +429,7 @@ class KiprisClient:
             (month, service),
         )
         self.conn.commit()
+        self.run_calls[service] += 1
         try:
             resp = self.http.get(url, params=params)
             resp.raise_for_status()
@@ -369,7 +438,14 @@ class KiprisClient:
             raise KiprisError(f"{type(e).__name__}: {str(e).replace(self.key, '***')}") from None
         except ET.ParseError:
             raise KiprisError("KIPRIS 응답을 읽지 못했어요") from None
-        check_response(root)
+        try:
+            check_response(root)
+        except KiprisQuotaError as e:
+            self.blocked = str(e)
+            self.conn.execute("INSERT OR IGNORE INTO api_blocks (month, reason, created_at) VALUES (?, ?, ?)",
+                              (month, self.blocked, datetime.now(KST).isoformat(timespec="seconds")))
+            self.conn.commit()
+            raise
         return root
 
     def search(self, country: str, kw: Keyword) -> list[Found]:
@@ -503,13 +579,36 @@ def importance(conn: sqlite3.Connection, patent_id: int, day: date, window_days:
 # ---------------------------------------------------------------- 하루 브리핑 만들기
 
 
-def _fill_details(conn: sqlite3.Connection, client, patent_ids, warnings: list[str]) -> None:
-    for pid in patent_ids:
-        p = conn.execute("SELECT country, doc_key, claims, abstract FROM patents WHERE id = ?", (pid,)).fetchone()
-        if p["claims"] or (p["country"] == "CN" and p["abstract"]):
-            continue
+QUOTA_STOP = "KIPRIS 이번 달 무료 한도가 끝나 특허 검색을 멈췄어요"
+
+
+def _quota_warning(warnings: list[str], reason: str) -> None:
+    """한도 경고는 한 번만 남긴다."""
+    if not any(w.startswith(QUOTA_STOP) for w in warnings):
+        warnings.append(f"{QUOTA_STOP} ({reason}). 매월 1일에 다시 열려요.")
+
+
+def _needs_details(conn: sqlite3.Connection, patent_id: int) -> bool:
+    """청구항(KR·US) 또는 초록(CN)이 아직 없는지."""
+    p = conn.execute("SELECT country, claims, abstract FROM patents WHERE id = ?", (patent_id,)).fetchone()
+    return not (p["claims"] or (p["country"] == "CN" and p["abstract"]))
+
+
+def _fill_details(conn: sqlite3.Connection, client, patent_ids, warnings: list[str]) -> str | None:
+    """상세가 없는 특허의 청구항·초록을 가져온다. 이번 달 한도가 끝나 멈췄으면 그 이유를 돌려준다."""
+    if client is None:  # 순위만 다시 매길 때(rescore)는 KIPRIS를 부르지 않는다
+        return None
+    todo = [pid for pid in patent_ids if _needs_details(conn, pid)]
+    for n, pid in enumerate(todo):
+        p = conn.execute("SELECT country, doc_key FROM patents WHERE id = ?", (pid,)).fetchone()
         try:
             d = client.details(p["country"], p["doc_key"])
+        except KiprisQuotaError as e:
+            _quota_warning(warnings, str(e))
+            return str(e)
+        except KiprisBudgetError:
+            warnings.append(f"하루 호출 예산이 끝나 상세 조회 {len(todo) - n}건을 다음 실행으로 미뤘어요")
+            return None
         except KiprisError as e:
             warnings.append(f"{COUNTRY_NAMES[p['country']]} {p['doc_key']} 상세 조회 실패: {e}")
             continue
@@ -522,6 +621,15 @@ def _fill_details(conn: sqlite3.Connection, client, patent_ids, warnings: list[s
             (d.get("claims"), d.get("claim_count"), d.get("abstract"), d.get("priority_no"),
              d.get("priority_country"), d.get("pct_no"), d.get("status"), d.get("ipc"), pid),
         )
+    return None
+
+
+def prioritize(keywords: list[Keyword]) -> list[Keyword]:
+    """하루 예산이 모자랄 때 중요한 검색부터 하도록 순서를 정한다. 같은 순서 안에서는 원래 순서를 지킨다.
+
+    주제별 1순위 키워드(와 직접 준 키워드) → 고정 관심 키워드 → 2순위 → 3순위 → …
+    """
+    return sorted(keywords, key=lambda kw: 1 if kw.interest else (0 if kw.rank <= 1 else kw.rank))
 
 
 def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date, settings: PatentSettings,
@@ -543,32 +651,58 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
     # 오래된 특허는 빼고 최근 몇 년 안에 공개된 것만 본다.
     cutoff = (day - timedelta(days=365 * settings.recent_years)).isoformat()
     retries_left = settings.max_kr_retries
+    # 하루 예산(가짜 클라이언트에는 없다). 오늘 고른 새 특허의 상세 조회 몫은 남겨 두고 검색한다.
+    remaining = getattr(client, "remaining", lambda: None)
+    pending = {pid for pid in new_keyword if _needs_details(conn, pid)}  # 상세를 아직 못 가져온 새 특허
+    skipped: list[str] = []  # 예산 때문에 건너뛴 검색
+    tried: set[str] = set()  # 실제로 검색한 키워드 (실패 포함). 건너뛴 키워드는 '검색 키워드'에 적지 않는다.
+    quota_stop: str | None = None  # 이번 달 한도가 끝나 멈췄으면 그 이유
 
-    for kw in keywords:
+    def out_of_budget() -> bool:
+        # 검색 한 번과 그 검색에서 고를 새 특허의 상세 한 번을 할 수 있어야 검색한다.
+        left = remaining()
+        return left is not None and left - len(pending) < 2
+
+    for kw in prioritize(keywords):
         prefixes = ipc_by_topic.get(kw.topic or "", ())
         for country in kw.countries:
             # 한국 특허가 0건이면 다른 표현으로 다시 찾는다 (하루 횟수 제한).
             terms = [kw.ko, *kw.alt] if country == "KR" else [kw.ko]
             found: list[Found] = []
+            searched = failed = False
             for n, term in enumerate(terms):
+                if n and retries_left <= 0:
+                    break
+                if out_of_budget():
+                    skipped.append(f"{COUNTRY_NAMES[country]} '{term}'")
+                    break
                 if n:
-                    if retries_left <= 0:
-                        break
                     retries_left -= 1
                 try:
                     raw = client.search(country, replace(kw, ko=term))
+                except KiprisQuotaError as e:
+                    quota_stop = str(e)
+                    break
                 except KiprisError as e:
                     warnings.append(f"{COUNTRY_NAMES[country]} '{term}' 검색 실패: {e}")
+                    tried.add(kw.ko)
+                    failed = True
                     break
+                tried.add(kw.ko)
+                searched = True
                 found = [f for f in raw
                          if (f.published_at or f.filed_at or "") >= cutoff and matches_ipc(f.ipc, prefixes)]
                 if found:
                     if n:
                         warnings.append(f"{COUNTRY_NAMES[country]} '{kw.ko}': 결과가 없어 '{term}'(으)로 다시 찾음")
                     break
+            if quota_stop:
+                break
             if not found:
-                warnings.append(f"{COUNTRY_NAMES[country]} '{kw.ko}': 최근 {settings.recent_years}년 안의 "
-                                "주제에 맞는 검색 결과 없음")
+                # 검색이 실패했거나 예산 때문에 건너뛰었으면 '결과 없음'이 아니다.
+                if searched and not failed:
+                    warnings.append(f"{COUNTRY_NAMES[country]} '{kw.ko}': 최근 {settings.recent_years}년 안의 "
+                                    "주제에 맞는 검색 결과 없음")
                 continue
             picked = 0
             for f in found:
@@ -581,11 +715,21 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
                 if picked < settings.per_search and pid not in new_keyword and (shown is None or shown == day_s):
                     new_keyword[pid] = kw.ko
                     picked += 1
+                    if _needs_details(conn, pid):
+                        pending.add(pid)
             if not picked:
                 warnings.append(f"{COUNTRY_NAMES[country]} '{kw.ko}': 새 특허 없음 (모두 이미 본 특허)")
+        if quota_stop:
+            break
 
-    # 새 특허의 청구항부터 가져와야 청구항 수가 점수에 들어간다.
-    _fill_details(conn, client, list(new_keyword), warnings)
+    if skipped:
+        warnings.append(f"하루 호출 예산({client.budget}회) 때문에 검색 {len(skipped)}개를 건너뛰었어요: "
+                        + ", ".join(skipped))
+    if quota_stop:
+        _quota_warning(warnings, quota_stop)
+    else:
+        # 새 특허의 청구항부터 가져와야 청구항 수가 점수에 들어간다.
+        quota_stop = _fill_details(conn, client, list(new_keyword), warnings)
 
     since = (day - timedelta(days=settings.hot_window_days - 1)).isoformat()
     recent = [r[0] for r in conn.execute(
@@ -598,7 +742,8 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
                  for pid in hot}
     hot.sort(key=lambda pid: (scored[pid][0], published[pid]), reverse=True)
     spotlight = hot[: settings.spotlight_size]
-    _fill_details(conn, client, spotlight, warnings)
+    if not quota_stop:
+        quota_stop = _fill_details(conn, client, spotlight, warnings)
 
     def latest_keyword(pid: int) -> str:
         return conn.execute(
@@ -619,10 +764,13 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
         conn.execute("UPDATE patents SET first_shown_day = COALESCE(first_shown_day, ?) WHERE id = ?",
                      (day_s, it["patent_id"]))
 
-    new_keywords = ({"ko": k.ko, "en": k.en, "interest": k.interest} for k in keywords)
+    # 예산·한도 때문에 한 번도 찾지 않은 키워드는 페이지·보고서의 '검색 키워드'에 넣지 않는다.
+    new_keywords = ({"ko": k.ko, "en": k.en, "interest": k.interest} for k in keywords if k.ko in tried)
     all_keywords = old["keywords"] + [k for k in new_keywords
                                       if k["ko"] not in {o["ko"] for o in old["keywords"]}]
-    content = {"keywords": all_keywords, "items": items, "warnings": warnings}
+    # quota_stop: 이번 달 한도가 끝나 검색·상세 조회를 멈췄으면 그 이유. 순위만 다시 매기면 그날 값을 그대로 둔다.
+    content = {"keywords": all_keywords, "items": items, "warnings": warnings,
+               "quota_stop": quota_stop if keywords else old.get("quota_stop")}
     conn.execute(
         "INSERT OR REPLACE INTO patent_briefings (day, content, created_at) VALUES (?, ?, ?)",
         (day_s, json.dumps(content, ensure_ascii=False), datetime.now(KST).isoformat(timespec="seconds")),
@@ -639,6 +787,7 @@ def keywords_from_briefing(conn: sqlite3.Connection, day: date, kr_per_topic: in
     """그날(없으면 그 전 가장 최근) 뉴스 브리핑의 키워드를 주제별로 번갈아 고른다.
 
     주제마다 앞의 kr_per_topic개는 한국 특허를, 그중 앞의 foreign_per_topic개는 미국·중국 특허도 찾는다.
+    그 주제에서 몇 번째 키워드인지(rank)도 적어 둔다. 하루 예산이 모자라면 앞 순위부터 찾는다.
     """
     row = conn.execute("SELECT day, content FROM briefings WHERE day <= ? ORDER BY day DESC LIMIT 1",
                        (day.isoformat(),)).fetchone()
@@ -656,7 +805,7 @@ def keywords_from_briefing(conn: sqlite3.Connection, day: date, kr_per_topic: in
             # 키워드가 나온 이야기의 기사 수 = 뉴스 화제성
             story = k.get("story")
             buzz = len(topic["stories"][story - 1]["article_ids"]) if story else 0
-            picked.append(Keyword(k["ko"], k["en"], countries, topic["name"], tuple(k.get("alt", [])), buzz))
+            picked.append(Keyword(k["ko"], k["en"], countries, topic["name"], tuple(k.get("alt", [])), buzz, rank=i + 1))
     return row["day"], picked
 
 
