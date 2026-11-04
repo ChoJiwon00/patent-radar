@@ -238,5 +238,11 @@ def test_page_uses_standard_material_names_but_keeps_official_titles(conn):
 def test_standard_terms_leaves_project_names_and_lithium_ion_alone():
     assert patents.standard_terms("인산망간철 양극재 과제") == "인산망간철 양극재 과제"
     assert patents.standard_terms("인산철 리튬이온 전지") == "인산철 리튬이온 전지"
-    assert patents.standard_terms("리튬 인산철") == "리튬 인산철"
     assert patents.standard_terms(None) is None
+
+
+def test_standard_terms_joins_spaced_material_names():
+    assert patents.standard_terms("리튬 인산철") == "리튬인산철"
+    assert patents.standard_terms("탄소 코팅 리튬 인산 철계 양극재(LFP)") == "탄소 코팅 리튬인산철계 양극재(LFP)"
+    assert patents.standard_terms("리튬 인산망간철 입자와 리튬 인산 망간 철") == "리튬인산망간철 입자와 리튬인산망간철"
+    assert patents.standard_terms("리튬 인산염 유리") == "리튬 인산염 유리"  # 철이 없는 인산염은 그대로
