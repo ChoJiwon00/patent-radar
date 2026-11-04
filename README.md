@@ -12,6 +12,7 @@
 · [보고서 모음](reports/)
 · [특허 한 장 가이드](https://chojiwon00.github.io/patent-radar/guide.html)
 · [Battery Life Lab](https://github.com/ChoJiwon00/battery-life-lab)
+· [포트폴리오 홈](https://chojiwon00.github.io/)
 
 - **매일**: 0시에 이차전지·ESS(에너지저장장치)·반도체 뉴스에서 기술 키워드를 뽑아 한국·미국·중국 특허를 찾고, Claude가 청구항을 한국어로 풀어 써요.
 - **깊게**: 기술 주제 하나를 골라 한·미·중 특허를 모으고, 여러 AI 에이전트가 읽은 뒤 다른 에이전트가 인용문과 숫자를 원문과 대조해 [심층 리포트](#심층-리포트에서-찾은-것)로 써요.
