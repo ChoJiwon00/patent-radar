@@ -8,7 +8,7 @@ lookback_days = 1
 # 검색어 하나당 가져올 최대 기사 수 (최신순)
 max_per_query = 30
 # 광고·스팸 출처. 이 이름의 언론사 기사는 저장하지 않아요.
-exclude_sources = ["Calgary Roughnecks"]
+exclude_sources = ["Calgary Roughnecks", "Unisba Media"]
 
 [patents]
 # 뉴스 브리핑 키워드 중 주제마다 앞에서 몇 개로 특허를 찾을지.
