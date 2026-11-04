@@ -1,18 +1,36 @@
 # Patent Radar — LFP · 이차전지 특허 레이더
 
 [![tests](https://github.com/ChoJiwon00/patent-radar/actions/workflows/tests.yml/badge.svg)](https://github.com/ChoJiwon00/patent-radar/actions/workflows/tests.yml)
+[![공개 사이트](https://img.shields.io/badge/%EA%B3%B5%EA%B0%9C%20%EC%82%AC%EC%9D%B4%ED%8A%B8-GitHub%20Pages-1f6feb?logo=github)](https://chojiwon00.github.io/patent-radar/)
+[![마지막 커밋](https://img.shields.io/github/last-commit/ChoJiwon00/patent-radar?label=%EB%A7%88%EC%A7%80%EB%A7%89%20%EC%BB%A4%EB%B0%8B)](https://github.com/ChoJiwon00/patent-radar/commits/main)
 
-리튬인산철(LFP) 양극재를 연구한 배터리 소재 연구자가 만든 특허 레이더예요. 매일 0시에 이차전지·ESS(에너지저장장치)·반도체 뉴스에서
-기술 키워드를 뽑아 **한국·미국·중국 특허**를 찾고, Claude가 **청구항을 한국어로 풀어 써요.**
+리튬인산철(LFP) 양극재를 연구한 배터리 소재 연구자가 만든 특허 레이더예요.
 
-**먼저 볼 것: [LFP 심층 리포트 · 고밀도 LFP와 표면 코팅 (2026년 10월)](reports/deep/high-density-lfp-2026-10.md)**
+**바로 가기:** [공개 사이트](https://chojiwon00.github.io/patent-radar/)
+· 심층 리포트 [① 고밀도 LFP](reports/deep/high-density-lfp-2026-10.md) · [② LFP 양산 공정](reports/deep/lfp-process-2026-10.md)
+· [청구항 숫자 지도](https://chojiwon00.github.io/patent-radar/claims.html)
+· [보고서 모음](reports/)
+· [특허 한 장 가이드](https://chojiwon00.github.io/patent-radar/guide.html)
+· [Battery Life Lab](https://github.com/ChoJiwon00/battery-life-lab)
+
+- **매일**: 0시에 이차전지·ESS(에너지저장장치)·반도체 뉴스에서 기술 키워드를 뽑아 한국·미국·중국 특허를 찾고, Claude가 청구항을 한국어로 풀어 써요.
+- **깊게**: 기술 주제 하나를 골라 한·미·중 특허를 모으고, 여러 AI 에이전트가 읽은 뒤 다른 에이전트가 인용문과 숫자를 원문과 대조해 [심층 리포트](#심층-리포트에서-찾은-것)로 써요.
+- **한눈에**: 두 리포트의 청구항·초록에 나온 숫자 140개를 특허마다 범위 막대로 그린 지도, 특허 용어 한 장 가이드, 매일 브리핑과 주간 리포트를 공개 사이트에 모아요.
+
+[![Patent Radar 화면](docs/screenshot.png)](https://chojiwon00.github.io/patent-radar/)
+
+위 그림은 2026년 10월 25일 화면이에요. 브리핑은 매일 0시에 새로 올라오니, 최신 화면은 [공개 사이트](https://chojiwon00.github.io/patent-radar/)에서 보세요(그림을 눌러도 가요).
+
+## 심층 리포트에서 찾은 것
+
+**① [LFP 심층 리포트 · 고밀도 LFP와 표면 코팅 (2026년 10월)](reports/deep/high-density-lfp-2026-10.md)**
 한·미·중 특허 371건을 모아 주제에 맞는 261건을 추리고, 청구항에 나온 숫자를 원문과 대조해 정리했어요.
 
 - 청구한 LFP 분말 압축 밀도는 2.45–2.76 g/cm³ 구간에 많이 걸쳐 있어요(압연·펠렛 밀도처럼 재는 방법이 다른 7개를 뺀 청구값 14개 중 10개, 하한만 적은 2개 포함). 재는 압력이 특허마다 달라 숫자끼리 바로 비교하면 안 된다는 점도 함께 적었어요.
 - 청구항까지 읽은 한·미 특허 59건 가운데 탄소 코팅과 밀도 수치를 한 청구항 묶음에 함께 넣은 특허는 16건이고, 그중 13건이 CATL과 LG화학 출원이에요.
 - 1차 소결 때는 탄소를 아주 적게 두고 2차 소결에서 코팅을 채우는 '2단 탄소' 방식이 4건에 보여요.
 
-**두 번째 리포트: [LFP 양산 공정 (2026년 10월)](reports/deep/lfp-process-2026-10.md)**
+**② [LFP 양산 공정 (2026년 10월)](reports/deep/lfp-process-2026-10.md)**
 원료(전구체) → 습식 분쇄 → 분무건조 → 소성 → 분쇄·분급·이물 제거까지, 리튬인산철 가루를 공장에서 만드는 순서대로 특허를 읽었어요(모은 282건 중 범위 안 174건).
 
 - 원료 단계의 공통 관리 숫자는 철-인 비(Fe/P)이고, 새 원료든 재활용 원료든 이 비율을 다시 맞추는 단계가 청구항·초록에 들어 있어요.
@@ -21,15 +39,6 @@
 
 **청구항 숫자 지도: [그래프로 보기](https://chojiwon00.github.io/patent-radar/claims.html)**
 두 리포트에 나온 숫자 140개(밀도·입자 크기·탄소 함량·코팅 두께·소성 온도·분무건조 온도·철-인 비)를 특허마다 범위 막대로 그렸어요. [아래 그림](#청구항-숫자-지도)이 그중 분말 압축 밀도예요.
-
-**데모 사이트:** https://chojiwon00.github.io/patent-radar/ · [주간 리포트](https://chojiwon00.github.io/patent-radar/#weekly)
-· 매일 쌓이는 보고서: [`reports/`](reports/)
-· [청구항 숫자 지도](https://chojiwon00.github.io/patent-radar/claims.html)
-· 특허가 처음이라면: [한 장 가이드](https://chojiwon00.github.io/patent-radar/guide.html)
-
-[![Patent Radar 화면](docs/screenshot.png)](https://chojiwon00.github.io/patent-radar/)
-
-위 그림은 2026년 10월 25일 화면이에요. 브리핑은 매일 0시에 새로 올라오니, 최신 화면은 [데모 사이트](https://chojiwon00.github.io/patent-radar/)에서 보세요(그림을 눌러도 가요).
 
 ## 무엇을 하나요
 
@@ -40,7 +49,7 @@
   **다른 에이전트가 인용문과 숫자를 원문과 글자 그대로 대조**해 리포트로 써요. 매일 브리핑의 '본 특허' 기록에는 넣지 않아요.
 - **청구항 숫자 지도**: 심층 리포트의 숫자 표를 7가지 주제로 나눠 특허마다 범위 막대로 그려요(`patents claimmap`). 단위를 하나로 맞추고, 같은 숫자는 한 번만 그려요.
 - **뉴스 브리핑**: 세 주제의 기사 제목에서 같은 사건을 묶고, 주제마다 중요한 이야기 3~5개를 요약해요.
-- **주간 트렌드 리포트**: 매주 월요일, 일주일치 통계(자주 나온 기술·출원인·기술 분류)와 AI의 흐름 분석을 만들어요.
+- **주간 트렌드 리포트**: 매주 월요일, 일주일치 통계(자주 나온 기술·출원인·기술 분류)와 AI의 흐름 분석을 만들어요. [사이트에서 보기](https://chojiwon00.github.io/patent-radar/#weekly)
 - **관심 회사·관심 특허**: 양극재·전지 회사를 관심 회사로 두고, 페이지에서 ★ 별표한 특허는 등록 여부를 매주 확인해요.
 
 ## 특허가 처음이라면
@@ -126,6 +135,9 @@ AI가 관련도를 낮게 판정한 특허는 순위에서 빠지고 페이지�
 
 ## 폴더 구조
 
+<details>
+<summary>폴더별 역할 펼쳐 보기</summary>
+
 ```
 patent-radar/
 ├─ .claude/skills/           AI가 하는 일 (daily-briefing · patent-briefing · weekly-report)
@@ -149,9 +161,14 @@ patent-radar/
 └─ tests/                    자동 테스트
 ```
 
+</details>
+
 ## 설치와 사용
 
 Python 3.11 이상이 필요해요(자동 테스트는 3.13에서 돌려요). 아래 명령은 Windows PowerShell 기준이에요.
+
+<details>
+<summary>설치와 명령 펼쳐 보기</summary>
 
 ```powershell
 python -m venv .venv
@@ -177,6 +194,8 @@ copy .env.example .env
 ```
 
 Claude Code에서는 `/daily-briefing`, `/patent-briefing`(또는 `/patent-briefing 전고체 전해질`), `/weekly-report`로 실행해요.
+
+</details>
 
 ## 데이터 출처
 

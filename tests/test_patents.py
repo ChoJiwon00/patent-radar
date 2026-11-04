@@ -116,6 +116,15 @@ def test_patent_links():
     assert patents.patent_url("CN", "CN 120933341 A") == "https://patents.google.com/patent/CN120933341A"
     assert patents.patent_url("US", "US 202600312050A1") is None  # 번호를 못 읽으면 링크를 만들지 않는다
 
+    # 두 번째 링크: Espacenet은 번호 하나로 검색하면 그 특허 화면이 바로 열린다.
+    search = "https://worldwide.espacenet.com/patent/search?q=pn%3D"
+    assert patents.espacenet_url("CN", "CN 122646881 A") == search + "CN122646881A"
+    assert patents.espacenet_url("US", "US 2026/0265058 A1") == search + "US20260265058A1"
+    assert patents.espacenet_url("KR", "공개 10-2026-0151015") is None
+    assert patents.url_label(pdf + "20260312149") == "USPTO 원문(PDF)"
+    assert patents.url_label("https://patents.google.com/patent/CN120933341A") == "Google Patents"
+    assert patents.url_label("https://doi.org/10.8080/1020250046256") is None  # 한국 특허는 번호만 보여 준다
+
 
 def test_spelling_variants_of_one_keyword_count_once():
     groups = patents.keyword_groups(["리튬 인산철 양극재", "리튬인산철", "리튬인산철 양극 활물질", "고체 전해질",

@@ -15,12 +15,12 @@
 | 번호 | 공개일 | 출원인 | 제목 | 그룹 | 자료 |
 |---|---|---|---|---|---|
 | [공개 10-2026-0154112](https://doi.org/10.8080/1020260069166) | 2026-10-23 | 주식회사 엘지화학 | 양극 활물질, 이의 제조방법, 이를 포함하는 양극 및 리튬 이차전지 | 원료·전구체 | 초록 |
-| [US 2026/0307993 A1](https://patents.google.com/patent/US20260307993A1) | 2026-10-08 | ADVANCED LITHIUM ELECTROCHEMISTRY CO., LTD. | LITHIUM IRON PHOSPHATE PRECURSOR, LITHIUM IRON PHOSPHATE CATHODE MATERIAL WITH HIGH COMPACTION DENSITY, AND MANUFACTURING METHOD THEREOF | 원료·전구체 · 분쇄·분무건조 | 청구항 |
+| [US 2026/0307993 A1](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/20260307993) | 2026-10-08 | ADVANCED LITHIUM ELECTROCHEMISTRY CO., LTD. | LITHIUM IRON PHOSPHATE PRECURSOR, LITHIUM IRON PHOSPHATE CATHODE MATERIAL WITH HIGH COMPACTION DENSITY, AND MANUFACTURING METHOD THEREOF | 원료·전구체 · 분쇄·분무건조 | 청구항 |
 | [공개 10-2026-0146380](https://doi.org/10.8080/1020267002238) | 2026-10-07 | 광동 브런프 리사이클링 테크놀로지 주식회사 | 리튬 인산철 양극재, 이의 제조방법 및 리튬 전지 | 원료·전구체 | 초록 |
 | [공개 10-2026-0145572](https://doi.org/10.8080/1020257014129) | 2026-10-07 | 후베이 완런 뉴 에너지 테크놀로지 코.,엘티디. | 인산철 재료, 양극 재료와 이의 제조방법 및 용도 | 원료·전구체 | 초록 |
-| [US 2026/0302380 A1](https://patents.google.com/patent/US20260302380A1) | 2026-10-01 | CONTEMPORARY AMPEREX TECHNOLOGY CO., LIMITED | LITHIUM-ION SECONDARY BATTERY, BATTERY APPARATUS, POWER CONSUMING APPARATUS, METHOD FOR PREPARING POSITIVE ELECTRODE ACTIVE MATERIAL, AND METHOD FOR PREPARING POSITIVE ELECTRODE PLATE | 원료·전구체 · 분쇄·분무건조 | 청구항 |
-| [US 2026/0302226 A1](https://patents.google.com/patent/US20260302226A1) | 2026-10-01 | A123 Systems LLC | HIGH POWER ELECTRODE MATERIALS | 원료·전구체 | 청구항 |
-| [US 2026/0302187 A1](https://patents.google.com/patent/US20260302187A1) | 2026-10-01 | CONTEMPORARY AMPEREX TECHNOLOGY CO., LIMITED | LITHIUM-ION SECONDARY BATTERY, BATTERY APPARATUS, POWER CONSUMING APPARATUS, PREPARATION METHOD FOR POSITIVE ELECTRODE ACTIVE MATERIAL, AND PREPARATION METHOD FOR POSITIVE ELECTRODE PLATE | 원료·전구체 · 분쇄·분무건조 | 청구항 |
+| [US 2026/0302380 A1](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/20260302380) | 2026-10-01 | CONTEMPORARY AMPEREX TECHNOLOGY CO., LIMITED | LITHIUM-ION SECONDARY BATTERY, BATTERY APPARATUS, POWER CONSUMING APPARATUS, METHOD FOR PREPARING POSITIVE ELECTRODE ACTIVE MATERIAL, AND METHOD FOR PREPARING POSITIVE ELECTRODE PLATE | 원료·전구체 · 분쇄·분무건조 | 청구항 |
+| [US 2026/0302226 A1](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/20260302226) | 2026-10-01 | A123 Systems LLC | HIGH POWER ELECTRODE MATERIALS | 원료·전구체 | 청구항 |
+| [US 2026/0302187 A1](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/20260302187) | 2026-10-01 | CONTEMPORARY AMPEREX TECHNOLOGY CO., LIMITED | LITHIUM-ION SECONDARY BATTERY, BATTERY APPARATUS, POWER CONSUMING APPARATUS, PREPARATION METHOD FOR POSITIVE ELECTRODE ACTIVE MATERIAL, AND PREPARATION METHOD FOR POSITIVE ELECTRODE PLATE | 원료·전구체 · 분쇄·분무건조 | 청구항 |
 | [공개 10-2026-0140547](https://doi.org/10.8080/1020267026999) | 2026-09-23 | 컨템포러리 엠퍼렉스 테크놀로지 씨오., 리미티드 외 1곳 | 리튬인산철의 제조 방법, 양극 활성재료, 양극 시트, 전지 및 전기 장치 | 원료·전구체 · 소성 | 청구항 |
 | [공개 10-2026-0139670](https://doi.org/10.8080/1020267011689) | 2026-09-22 | 광동 브런프 리사이클링 테크놀로지 주식회사 | 리튬 인산철 양극재 및 제조방법, 양극판과 리튬 전지 | 원료·전구체 | 초록 |
 | [공개 10-2026-0134603](https://doi.org/10.8080/1020267013161) | 2026-09-08 | 광동 브런프 리사이클링 테크놀로지 주식회사 | 리튬 인산철 소재 및 이의 제조방법, 양극판과 이차전지 | 원료·전구체 | 초록 |
@@ -104,7 +104,7 @@
 
 | 번호 | 공개일 | 출원인 | 제목 | 그룹 | 자료 |
 |---|---|---|---|---|---|
-| [US 2026/0265058 A1](https://patents.google.com/patent/US20260265058A1) | 2026-09-10 | LBM NEW ENERGY (AP) PTE. LTD. | PREPARATION METHOD FOR LITHIUM IRON PHOSPHATE MATERIAL, LITHIUM IRON PHOSPHATE MATERIAL AND USE THEREOF | 분쇄·분무건조 | 청구항 |
+| [US 2026/0265058 A1](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/20260265058) | 2026-09-10 | LBM NEW ENERGY (AP) PTE. LTD. | PREPARATION METHOD FOR LITHIUM IRON PHOSPHATE MATERIAL, LITHIUM IRON PHOSPHATE MATERIAL AND USE THEREOF | 분쇄·분무건조 | 청구항 |
 | [CN 122436487 A](https://patents.google.com/patent/CN122436487A) | 2026-07-21 | HENAN LONGBAI NEW MATERIAL TECHNOLOGY CO., LTD. 외 1곳 | Vanadium-doped lithium iron phosphate positive electrode material as well as preparation method and application thereof | 분쇄·분무건조 | 초록 |
 | [CN 122403402 A](https://patents.google.com/patent/CN122403402A) | 2026-07-17 | HUBEI RUIPAI NEW ENERGY TECHNOLOGY CO., LTD. | Preparation method of lithium iron phosphate positive electrode material and lithium iron phosphate positive electrode material | 분쇄·분무건조 · 분급·품질 | 초록 |
 | [CN 122393268 A](https://patents.google.com/patent/CN122393268A) | 2026-07-14 | HUNAN DISASTER PREVENTION TECHNOLOGY CO., LTD. 외 3곳 | Step-by-step reduction coating preparation method and material of high-compaction lithium iron phosphate and lithium battery | 분쇄·분무건조 | 초록 |
@@ -164,7 +164,7 @@
 
 | 번호 | 공개일 | 출원인 | 제목 | 그룹 | 자료 |
 |---|---|---|---|---|---|
-| [US 2026/0116756 A1](https://patents.google.com/patent/US20260116756A1) | 2026-04-30 | BEIJING EASPRING MATERIAL TECHNOLOGY CO., LTD. | LITHIUM IRON PHOSPHATE CATHODE MATERIAL, PREPARATION METHOD THEREOF, AND LITHIUM-ION BATTERY | 소성 | 제목만 |
+| [US 2026/0116756 A1](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/20260116756) | 2026-04-30 | BEIJING EASPRING MATERIAL TECHNOLOGY CO., LTD. | LITHIUM IRON PHOSPHATE CATHODE MATERIAL, PREPARATION METHOD THEREOF, AND LITHIUM-ION BATTERY | 소성 | 제목만 |
 | [CN 121493924 A](https://patents.google.com/patent/CN121493924A) | 2026-02-10 | HUNAN JULI NEW ENERGY TECHNOLOGY CO., LTD. | Lithium iron phosphate positive electrode material and preparation method thereof | 소성 | 제목만 |
 | [공개 10-2025-0173436](https://doi.org/10.8080/1020250070219) | 2025-12-10 | 주식회사 엘지화학 | 양극 활물질의 제조 방법, 양극 활물질, 이를 포함하는 양극 및 리튬 이차전지 | 소성 | 초록 |
 | [등록 10-2791946](https://doi.org/10.8080/1020250004094) | 2025-04-01 | 후난 위넝 뉴 에너지 배터리 메테리얼 컴퍼니., 리미티드. | 초고압축된 인산철 리튬 정극 재료의 제조 방법 및 리튬 전지 | 소성 | 초록 |
@@ -183,7 +183,7 @@
 |---|---|---|---|---|---|
 | [CN 122124903 A](https://patents.google.com/patent/CN122124903A) | 2026-06-02 | FUJIAN ZIJIN LIYUAN MATERIAL TECHNOLOGY CO., LTD. | Lithium iron phosphate secondary crushing carbon coating system | 분급·품질 | 제목만 |
 | [CN 122102074 A](https://patents.google.com/patent/CN122102074A) | 2026-05-29 | GUANGZHOU TINCI MATERIALS TECHNOLOGY CO., LTD. 외 1곳 | Titanium-doped iron phosphate and preparation method thereof, titanium-doped lithium iron phosphate and battery | 분급·품질 | 제목만 |
-| [US 2026/0070789 A1](https://patents.google.com/patent/US20260070789A1) | 2026-03-12 | Sichuan Jinhengfengling New Material Technology Co., Ltd. | METHOD FOR SYNTHESIZING LITHIUM IRON PHOSPHATE USING ANHYDROUS AMORPHOUS IRON PHOSPHATE | 분급·품질 | 제목만 |
+| [US 2026/0070789 A1](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/20260070789) | 2026-03-12 | Sichuan Jinhengfengling New Material Technology Co., Ltd. | METHOD FOR SYNTHESIZING LITHIUM IRON PHOSPHATE USING ANHYDROUS AMORPHOUS IRON PHOSPHATE | 분급·품질 | 제목만 |
 | [CN 121553914 A](https://patents.google.com/patent/CN121553914A) | 2026-02-24 | JIANGXI GEPAI BATTERY MATERIAL CO., LTD. | Preparation method of lithium iron phosphate with low magnetic impurities | 분급·품질 | 제목만 |
 | [CN 121269671 A](https://patents.google.com/patent/CN121269671A) | 2026-01-06 | GUIZHOU PHOSPHATE KAIRUI TECHNOLOGY CO., LTD. | Preparation method of lithium iron phosphate precursor | 분급·품질 | 제목만 |
 | [CN 121016624 A](https://patents.google.com/patent/CN121016624A) | 2025-11-28 | ZHEJIANG YOUSHAN NEW ENERGY TECHNOLOGY CO., LTD. | Production device for grading, coating and modifying lithium iron phosphate particles | 분급·품질 | 제목만 |

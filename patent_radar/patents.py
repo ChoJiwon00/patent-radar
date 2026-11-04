@@ -216,6 +216,16 @@ def parse_kr_search(root: ET.Element) -> list[Found]:
 
 
 USPTO_PDF = "https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/"
+GOOGLE_PATENTS = "https://patents.google.com/patent/"
+ESPACENET = "https://worldwide.espacenet.com/patent/search?q=pn%3D"
+
+
+def _split_number(country: str, number: str | None) -> tuple[str, str] | None:
+    """'US 2026/0312149 A1' → ('20260312149', 'A1'). 해외 특허 번호 꼴이 아니면 None."""
+    parts = (number or "").split()
+    if len(parts) not in (2, 3) or parts[0] != country or not re.fullmatch(r"[\d/]+", parts[1]):
+        return None
+    return parts[1].replace("/", ""), parts[2] if len(parts) == 3 else ""
 
 
 def patent_url(country: str, number: str | None) -> str | None:
@@ -223,13 +233,31 @@ def patent_url(country: str, number: str | None) -> str | None:
 
     Google Patents는 막 공개된 미국 특허를 몇 주 동안 찾지 못해서(404), 미국은 USPTO 원문 PDF로 연결한다.
     """
-    parts = (number or "").split()
-    if len(parts) not in (2, 3) or parts[0] != country or not re.fullmatch(r"[\d/]+", parts[1]):
+    split = _split_number(country, number)
+    if split is None:
         return None
-    digits = parts[1].replace("/", "")
+    digits, kind = split
     if country == "US":
         return USPTO_PDF + (digits if len(digits) == 11 else digits.lstrip("0"))
-    return f"https://patents.google.com/patent/{country}{digits}{parts[2] if len(parts) == 3 else ''}"
+    return f"{GOOGLE_PATENTS}{country}{digits}{kind}"
+
+
+def espacenet_url(country: str, number: str | None) -> str | None:
+    """유럽특허청 Espacenet 주소. 번호 하나로 검색하면 그 특허 화면이 바로 열린다.
+
+    Google Patents는 막 공개된 중국 특허도 못 찾을 때가 있어서(404) 해외 특허에 두 번째 링크로 붙인다.
+    """
+    split = _split_number(country, number)
+    return f"{ESPACENET}{country}{split[0]}{split[1]}" if split else None
+
+
+def url_label(url: str | None) -> str | None:
+    """원문 링크가 어디로 가는지. 한국 특허(KIPRIS)는 지금처럼 번호만 보여 주도록 None."""
+    if url and url.startswith(USPTO_PDF):
+        return "USPTO 원문(PDF)"
+    if url and url.startswith(GOOGLE_PATENTS):
+        return "Google Patents"
+    return None
 
 
 def display_url(country: str, number: str | None, url: str | None) -> str | None:
@@ -933,12 +961,14 @@ def for_page(conn: sqlite3.Connection, day: date) -> dict | None:
     spotlight, fresh, low = [], [], []
     for info, p in _rows(conn, content):
         detail = json.loads(p["detail_ko"]) if p["detail_ko"] else []
+        url = display_url(p["country"], p["number"], p["url"])
         item = {
             "key": f"{p['country']}-{p['doc_key']}",
             "country": p["country"], "number": p["number"], "title": p["title"],
             "title_ko": p["title_ko"] if p["title_ko"] == p["title"] else standard_terms(p["title_ko"]),
             "applicant": p["applicant"], "published_at": p["published_at"], "ipc": p["ipc"],
-            "url": display_url(p["country"], p["number"], p["url"]),
+            "url": url, "url_label": url_label(url),
+            "alt_url": espacenet_url(p["country"], p["number"]),  # 한국 특허 번호('공개 10-…')는 None
             "summary_ko": standard_terms(p["summary_ko"]), "key_claim_ko": standard_terms(p["key_claim_ko"]),
             "keyword": info["keyword"],
             "detail": [{k: standard_terms(v) if isinstance(v, str) else v for k, v in d.items()} for d in detail],
@@ -972,11 +1002,15 @@ def report_markdown(page: dict) -> str:
     keywords = ", ".join(dict.fromkeys(f"{k['ko']} ({k['en']})" for k in page["keywords"]))
     lines += [f"검색 키워드: {keywords}" if keywords else "검색 키워드: 없음", ""]
 
+    def links(i: dict) -> str:
+        # 해외 특허는 Google Patents가 404일 때를 대비해 Espacenet 링크를 하나 더 붙인다.
+        link = f"[{i['number']}]({i['url']})" if i["url"] else i["number"]
+        return link + (f" · [Espacenet]({i['alt_url']})" if i.get("alt_url") else "")
+
     def entry(i: dict, heading: str) -> list[str]:
         title = i["title_ko"] or i["title"]
-        link = f"[{i['number']}]({i['url']})" if i["url"] else i["number"]
         out = [f"### {heading}{title}", "",
-               f"- {COUNTRY_NAMES[i['country']]} · {link} · {i['applicant'] or '출원인 정보 없음'} · 공개 {i['published_at'] or '-'}"]
+               f"- {COUNTRY_NAMES[i['country']]} · {links(i)} · {i['applicant'] or '출원인 정보 없음'} · 공개 {i['published_at'] or '-'}"]
         if i["title_ko"] and i["title_ko"] != i["title"]:
             out.append(f"- 원래 제목: {i['title']}")
         tags = [f"관심 회사({i['company']})" if i.get("company") else "",
@@ -1009,9 +1043,8 @@ def report_markdown(page: dict) -> str:
         lines += ["## 관련도가 낮은 특허", "",
                   "검색어에는 걸렸지만 AI가 오늘 주제와 관련이 낮다고 판단한 특허예요.", ""]
         for i in page["low"]:
-            link = f"[{i['number']}]({i['url']})" if i["url"] else i["number"]
             note = f" — {i['relevance_note']}" if i["relevance_note"] else ""
-            lines.append(f"- {i['title_ko'] or i['title']} ({COUNTRY_NAMES[i['country']]} · {link}){note}")
+            lines.append(f"- {i['title_ko'] or i['title']} ({COUNTRY_NAMES[i['country']]} · {links(i)}){note}")
         lines.append("")
     lines += ["---", "", "자료: KIPRIS Plus. 한국어 제목·요약은 Claude가 청구항과 초록을 바탕으로 작성했어요."]
     return "\n".join(lines).rstrip() + "\n"

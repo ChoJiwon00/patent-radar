@@ -110,6 +110,36 @@ def test_old_google_links_for_us_patents_are_shown_as_uspto(conn):
     assert conn.execute("SELECT url FROM patents").fetchone()[0] == pdf
 
 
+def test_foreign_patents_get_a_second_link_to_espacenet(conn):
+    def patent(country, number):
+        url = "https://doi.org/10.8080/1020250046256" if country == "KR" else None
+        return patents.Found(country, country.lower(), number, "t", "ACME", None, "2026-10-08", None, url)
+
+    client = FakeClient({("KR", "가"): [patent("KR", "공개 10-2026-0151015")],
+                         ("US", "가"): [patent("US", "US 2026/0265058 A1")],
+                         ("CN", "가"): [patent("CN", "CN 122646881 A")]})
+    content = patents.collect(conn, client, [patents.Keyword("가", "a", ("KR", "US", "CN"))], DAY, SETTINGS)
+    search = "https://worldwide.espacenet.com/patent/search?q=pn%3D"
+    pdf = "https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/20260265058"
+    google = "https://patents.google.com/patent/CN122646881A"
+
+    page = patents.for_page(conn, DAY)
+    links = {i["country"]: (i["url"], i["url_label"], i["alt_url"]) for i in page["spotlight"] + page["items"]}
+    assert links == {"KR": ("https://doi.org/10.8080/1020250046256", None, None),
+                     "US": (pdf, "USPTO 원문(PDF)", search + "US20260265058A1"),
+                     "CN": (google, "Google Patents", search + "CN122646881A")}
+    text = patents.report_markdown(page)
+    assert f"[US 2026/0265058 A1]({pdf}) · [Espacenet]({search}US20260265058A1) · ACME" in text
+    assert "[공개 10-2026-0151015](https://doi.org/10.8080/1020250046256) · ACME" in text
+
+    # 관련도가 낮은 특허 목록에도 두 링크를 함께 적는다.
+    cn = next(i["patent_id"] for i in content["items"]
+              if conn.execute("SELECT country FROM patents WHERE id = ?", (i["patent_id"],)).fetchone()[0] == "CN")
+    summarize(conn, cn, relevant=False, note="무관")
+    text = patents.report_markdown(patents.for_page(conn, DAY))
+    assert f"[CN 122646881 A]({google}) · [Espacenet]({search}CN122646881A)) — 무관" in text
+
+
 def test_relevance_can_be_saved_without_rewriting_summary(conn):
     client = FakeClient({("KR", "가"): [found("KR", "k1")]})
     content = patents.collect(conn, client, [patents.Keyword("가", "a", ("KR",))], DAY, SETTINGS)

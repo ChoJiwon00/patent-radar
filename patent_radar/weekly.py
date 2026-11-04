@@ -163,12 +163,19 @@ def get(conn: sqlite3.Connection, end: date) -> dict | None:
     if row is None:
         return None
     stats = json.loads(row["stats"])
-    # 예전에 저장한 주간 통계의 해외 특허 주소도 지금 규칙(미국은 USPTO 원문)으로 보여 준다.
+    # 예전에 저장한 주간 통계의 해외 특허 주소도 지금 규칙(미국은 USPTO 원문)으로 보여 주고,
+    # Google Patents가 404일 때를 대비해 Espacenet 주소(alt_url)를 하나 더 붙인다.
     for p in [*stats["patents"]["spotlight"], *stats["patents"]["companies"], *stats.get("stars", [])]:
         if p.get("country") and p.get("number"):
             p["url"] = patents.display_url(p["country"], p["number"], p.get("url"))
+            p["url_label"] = patents.url_label(p["url"])
+            p["alt_url"] = patents.espacenet_url(p["country"], p["number"])
     return {"end": row["end_day"], "start": stats["start"], "created_at": row["created_at"],
             "stats": stats, "commentary": json.loads(row["commentary"])}
+
+
+def _espacenet(x: dict) -> str:
+    return f" · [Espacenet]({x['alt_url']})" if x.get("alt_url") else ""
 
 
 def report_markdown(report: dict) -> str:
@@ -191,7 +198,7 @@ def report_markdown(report: dict) -> str:
     if p["spotlight"]:
         lines += ["## 🔥 이번 주 주목 특허", "", "| 순위 | 특허 | 출원인 | 주목도 |", "|---|---|---|---|"]
         for x in p["spotlight"]:
-            link = f"[{x['number']}]({x['url']})" if x["url"] else x["number"]
+            link = (f"[{x['number']}]({x['url']})" if x["url"] else x["number"]) + _espacenet(x)
             lines.append(f"| {x['rank']} | {x['title']} ({link}) | {x['applicant'] or '-'} | {x['score']}점 |")
         lines.append("")
 
@@ -215,7 +222,7 @@ def report_markdown(report: dict) -> str:
         lines += ["## ★ 관심 특허", "", "| 특허 | 진행 상태 | 이번 주 변화 |", "|---|---|---|"]
         for x in s["stars"]:
             title = x["title_ko"] or x["title"] or x["key"]
-            link = f"[{x['number']}]({x['url']})" if x.get("url") else x["key"]
+            link = (f"[{x['number']}]({x['url']})" if x.get("url") else x["key"]) + _espacenet(x)
             lines.append(f"| {title} ({link}) | {x['status'] or '-'} | {'바뀜' if x['changed_this_week'] else ''} |")
         lines.append("")
 

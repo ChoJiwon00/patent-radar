@@ -68,6 +68,21 @@ def test_save_and_report(conn):
     assert "| 전고체 전해질 | 이차전지 | 2일 |" in text
 
 
+def test_report_links_foreign_patents_to_espacenet_too(conn):
+    stats = weekly.build_stats(conn, END)
+    # 예전에 저장한 통계처럼 주소가 비어 있어도 읽을 때 원문·Espacenet 주소를 만든다.
+    stats["patents"]["spotlight"] = [{"country": "CN", "number": "CN 122646881 A", "title": "t", "url": None,
+                                      "applicant": "ACME", "rank": 1, "score": 7, "reasons": [], "company": None}]
+    weekly.save(conn, stats, COMMENTARY)
+
+    report = weekly.get(conn, END)
+    text = weekly.report_markdown(report)
+
+    assert report["stats"]["patents"]["spotlight"][0]["url_label"] == "Google Patents"
+    assert ("| 1 | t ([CN 122646881 A](https://patents.google.com/patent/CN122646881A) · "
+            "[Espacenet](https://worldwide.espacenet.com/patent/search?q=pn%3DCN122646881A)) | ACME | 7점 |") in text
+
+
 def test_site_export(conn, tmp_path, monkeypatch):
     weekly.save(conn, weekly.build_stats(conn, END), COMMENTARY)
     page = tmp_path / "briefing.html"

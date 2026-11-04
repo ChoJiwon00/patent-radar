@@ -187,7 +187,39 @@
   summary { cursor: pointer; font-weight: 600; }
   .left-out { margin-top: 8px; }
   .left-out td { font-size: 13px; }
-  footer.wrap { padding-bottom: 40px; font-size: 13px; color: var(--muted); }
+  .made { padding-bottom: 32px; font-size: 13px; color: var(--muted); }
+
+  /* 공통 메뉴·바닥글: artifact/briefing.html·docs/claims.html·docs/guide.html에 똑같이 들어 있다(세 곳을 함께 고친다).
+     넓은 화면에서는 한 줄, 좁으면 칩처럼 두 줄로 접힌다. */
+  .sitenav { position: relative; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .sitenav-in, .sitefoot-in {
+    max-width: var(--site-w, 1120px); margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .sitenav-list { list-style: none; margin: 0 0 0 -11px; padding: 8px 0; display: flex; flex-wrap: wrap; gap: 2px; }
+  .sitenav-list > li { position: relative; }
+  .sitenav a, .sitenav summary {
+    display: block; padding: 6px 11px; border-radius: 999px; white-space: nowrap; cursor: pointer;
+    font: 500 13.5px/1.3 var(--body); color: var(--muted); text-decoration: none;
+  }
+  .sitenav details { margin: 0; }
+  .sitenav summary { list-style: none; }
+  .sitenav summary::-webkit-details-marker { display: none; }
+  .sitenav a:hover, .sitenav summary:hover, .sitenav details[open] > summary { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+  .sitenav a[aria-current="page"] { color: var(--ink); font-weight: 600; background: color-mix(in srgb, var(--ink) 9%, transparent); }
+  .sitenav-menu {
+    position: absolute; top: calc(100% + 4px); left: 0; z-index: 1; width: max-content; max-width: calc(100vw - 32px);
+    list-style: none; margin: 0; padding: 6px; display: grid; gap: 2px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 24px rgb(0 0 0 / .14);
+  }
+  .sitenav-menu a { border-radius: 6px; padding: 8px 10px; color: var(--ink); white-space: normal; }
+  .sitefoot { border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+  .sitefoot-in { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 20px; padding-block: 18px max(22px, env(safe-area-inset-bottom, 0px)); }
+  .sitefoot p { margin: 0; }
+  .sitefoot a { color: inherit; text-underline-offset: 3px; }
+  .sitefoot a:hover { color: var(--ink); }
+  /* 공통 메뉴·바닥글 끝 */
 
   @media (max-width: 720px) {
     :root { --lw: 0px; --gap: 0px; }
@@ -201,6 +233,29 @@
 </style>
 </head>
 <body>
+<!-- 공통 메뉴: artifact/briefing.html(사이트 첫 화면)·docs/claims.html·docs/guide.html에 똑같이 들어 있다. 고칠 때는 세 곳을 함께 고친다.
+     사이트 주소를 전체 주소로 적어서 claude.ai 비공개 페이지 안에서도 링크가 맞게 열린다. -->
+<nav class="sitenav" aria-label="사이트 메뉴">
+  <div class="sitenav-in">
+    <ul class="sitenav-list">
+      <li><a href="https://chojiwon00.github.io/patent-radar/" data-mode="daily">브리핑</a></li>
+      <li><a href="https://chojiwon00.github.io/patent-radar/#weekly" data-mode="weekly">주간 리포트</a></li>
+      <li><a href="https://chojiwon00.github.io/patent-radar/claims.html" aria-current="page">청구항 숫자 지도</a></li>
+      <li>
+        <details>
+          <summary>심층 리포트 <span aria-hidden="true">▾</span></summary>
+          <ul class="sitenav-menu">
+            <li><a href="https://github.com/ChoJiwon00/patent-radar/blob/main/reports/deep/high-density-lfp-2026-10.md" target="_blank" rel="noopener noreferrer">고밀도 리튬인산철(LFP) 양극재 ↗</a></li>
+            <li><a href="https://github.com/ChoJiwon00/patent-radar/blob/main/reports/deep/lfp-process-2026-10.md" target="_blank" rel="noopener noreferrer">리튬인산철(LFP) 양산 공정 ↗</a></li>
+          </ul>
+        </details>
+      </li>
+      <li><a href="https://chojiwon00.github.io/patent-radar/guide.html">처음이라면</a></li>
+      <li><a href="https://github.com/ChoJiwon00/patent-radar" target="_blank" rel="noopener noreferrer">GitHub ↗</a></li>
+    </ul>
+  </div>
+</nav>
+
 <header class="masthead">
   <div class="wrap">
     <p class="eyebrow"><span class="en">Patent Radar</span> · 청구항 숫자 지도</p>
@@ -208,11 +263,6 @@
     <p class="about">리튬인산철(LFP) 심층 리포트 두 편에 실린 ‘청구항에 나온 숫자’ 표를 그래프 7개로 옮겼어요.
       꽉 찬 막대는 특허가 보호받으려고 청구항에 적은 범위이고, 속이 빈 막대는 초록에 적힌 값(특허가 내세운 결과값 포함)이에요.
       <strong>시장에 나온 제품을 잰 값은 아니에요.</strong></p>
-    <p class="about">
-      <a href="./">← 오늘의 특허 레이더</a>
-      · <span id="report-links"></span>
-      · <a href="guide.html">특허가 처음이라면? 한 장 가이드</a>
-    </p>
     <nav class="panels" id="panels" role="tablist" aria-label="그래프 고르기"></nav>
   </div>
 </header>
@@ -268,7 +318,14 @@
     </details>
   </section>
 </main>
-<footer class="wrap" id="made"></footer>
+<p class="wrap made" id="made"></p>
+
+<footer class="sitefoot">
+  <div class="sitefoot-in">
+    <p>데이터: KIPRIS · USPTO · Google 뉴스 · 브리핑은 매일 0시 자동 업데이트</p>
+    <p><a href="https://github.com/ChoJiwon00/patent-radar" target="_blank" rel="noopener noreferrer">코드 GitHub ↗</a> · 다른 프로젝트: <a href="https://github.com/ChoJiwon00/battery-life-lab" target="_blank" rel="noopener noreferrer">Battery Life Lab ↗</a></p>
+  </div>
+</footer>
 
 <div id="tip" role="tooltip" hidden></div>
 
@@ -520,8 +577,6 @@
     state.panel = data.panels.some((p) => p.id === want) ? want : data.panels[0].id;
     $("#panels").innerHTML = data.panels.map((p) =>
       `<button type="button" role="tab" id="tab-${p.id}" data-id="${p.id}" aria-controls="panel-card" aria-selected="false" tabindex="-1">${esc(p.title)} <span class="n">${p.count}</span></button>`).join("");
-    $("#report-links").innerHTML = data.reports.map((r) =>
-      `<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">심층 리포트: ${esc(r.title)} ↗</a>`).join(" · ");
     $("#left-count").textContent = data.left_out.length;
     $("#left-out").innerHTML = `<table><thead><tr><th>특허</th><th>항목</th><th>값</th><th>뺀 이유</th></tr></thead><tbody>`
       + data.left_out.map((l) => `<tr><td class="pn-cell">${esc(l.patent)}</td><td>${esc(l.item)}</td><td class="num">${esc(l.value)}</td><td>${esc(l.reason)}</td></tr>`).join("")
@@ -537,6 +592,30 @@
     $("#panel-sub").textContent = `data/claims.json (${err.message})`;
   });
 })();
+</script>
+<script>
+  // 공통 메뉴: '심층 리포트' 펼침은 바깥을 누르거나 Esc를 누르면 닫고, 화면 오른쪽 끝을 넘으면 왼쪽으로 민다.
+  (() => {
+    const more = document.querySelector(".sitenav details");
+    const menu = more.querySelector(".sitenav-menu");
+    more.addEventListener("toggle", () => {
+      menu.style.left = "";
+      if (!more.open) return;
+      const over = menu.getBoundingClientRect().right - (document.documentElement.clientWidth - 12);
+      if (over > 0) menu.style.left = `${-over}px`;
+    });
+    more.addEventListener("focusout", (e) => {
+      if (more.open && e.relatedTarget && !more.contains(e.relatedTarget)) more.open = false;
+    });
+    document.addEventListener("click", (e) => {
+      if (more.open && !more.contains(e.target)) more.open = false;
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || !more.open) return;
+      more.open = false;
+      more.querySelector("summary").focus();
+    });
+  })();
 </script>
 </body>
 </html>
