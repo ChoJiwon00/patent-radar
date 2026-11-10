@@ -13,7 +13,7 @@ import httpx
 import pytest
 
 from patent_radar import __main__ as cli
-from patent_radar import briefing, db, deep, news, patents
+from patent_radar import briefing, db, deep, news, patents, stars
 from patent_radar.config import KST, PatentSettings
 from patent_radar.patents import KiprisClient, KiprisQuotaError, Keyword
 
@@ -24,6 +24,8 @@ DAY = date(2026, 11, 3)
 HttpClient = httpx.Client
 REFUSED = ("<response><header><resultCode>22</resultCode><resultMsg>LIMITED NUMBER OF SERVICE REQUESTS EXCEEDS"
            "</resultMsg></header></response>")
+# 2026-11-07 점검 날처럼 XML 대신 오는 안내 페이지
+MAINTENANCE = "<html><head><title>KIPRIS Plus</title></head><body><p>시스템 점검 중입니다<br></p></body></html>"
 
 
 class Clock(datetime):
@@ -57,9 +59,12 @@ class FakeKipris:
         self.fail = set(fail)  # 500 오류로 실패시킬 (나라, 검색어)
         self.refuse_on = set(refuse_on)  # 오류 22로 거부할 (나라, 검색어)
         self.refuse = False  # 켜면 모든 호출을 거부
+        self.maintenance = False  # 켜면 모든 호출에 점검 안내 페이지(HTML)를 돌려줌
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
+        if self.maintenance:
+            return httpx.Response(200, text=MAINTENANCE)
         path, q = request.url.path, request.url.params
         if path.endswith("/getAdvancedSearch"):
             key = ("KR", q["astrtCont"])
@@ -281,9 +286,15 @@ def test_fill_details_stops_once_on_budget_or_quota(conn):
 
     warnings = []
     quota = Out(KiprisQuotaError("KIPRIS 오류 22: x"))
-    assert patents._fill_details(conn, quota, ids, warnings) == "KIPRIS 오류 22: x"
-    assert patents._fill_details(conn, quota, ids, warnings) == "KIPRIS 오류 22: x"
+    assert patents._fill_details(conn, quota, ids, warnings) == ("quota_stop", "KIPRIS 오류 22: x")
+    assert patents._fill_details(conn, quota, ids, warnings) == ("quota_stop", "KIPRIS 오류 22: x")
     assert len(warnings) == 1 and warnings[0].startswith(patents.QUOTA_STOP)
+
+    warnings = []
+    down = Out(patents.KiprisDownError("연달아 3번 실패"))
+    assert patents._fill_details(conn, down, ids, warnings) == ("kipris_down", "연달아 3번 실패")
+    assert patents._fill_details(conn, down, ids, warnings) == ("kipris_down", "연달아 3번 실패")
+    assert len(warnings) == 1 and warnings[0].startswith(patents.DOWN_STOP) and "다음 실행" in warnings[0]
 
 
 def test_rescore_never_calls_kipris(conn, monkeypatch):
@@ -353,6 +364,24 @@ def test_patents_deep_shows_the_cost_before_it_starts(conn, clock, monkeypatch, 
 
     assert cli.cmd_patents_deep(_deep_args(out=str(tmp_path / "d.json"), no_details=True)) == 0
     assert "예상 최대 1회: 남은 한도 100회 → 99회" in capsys.readouterr().out and len(requests) == 1
+
+
+def test_patents_deep_records_the_stop_in_the_saved_json_when_kipris_is_down(conn, clock, monkeypatch, tmp_path):
+    server = FakeKipris()
+    server.maintenance = True
+    topic = deep.DeepTopic("t", [deep.DeepQuery("g1", "가", '"a"'), deep.DeepQuery("g2", "나", '"b"')])
+    monkeypatch.setattr(cli, "kipris_api_key", lambda: "KEY")
+    monkeypatch.setattr(cli, "load_patent_settings", lambda: PatentSettings(monthly_call_limit=100))
+    monkeypatch.setattr(cli.deep, "load_topic", lambda path: topic)
+    monkeypatch.setattr(cli.db, "session", lambda *a, **k: contextlib.nullcontext(conn))
+    monkeypatch.setattr(cli.httpx, "Client", lambda *a, **k: server.http())
+
+    # 상세 조회할 특허가 없어도(--no-details) 경고가 저장돼서, 그 JSON으로 쓴 리포트가 '검색 3개뿐'으로 읽히지 않는다.
+    out = tmp_path / "d.json"
+    assert cli.cmd_patents_deep(_deep_args(out=str(out), no_details=True)) == 0
+    saved = json.loads(out.read_text(encoding="utf-8"))
+    assert len(server.requests) == 3 and len(saved["runs"]) == 6
+    assert len(saved["warnings"]) == 1 and saved["warnings"][0].startswith(f"{patents.NOT_ANSWERING} 심층 모으기를 멈췄어요")
 
 
 def test_patents_deep_counts_details_only_for_countries_it_searches(conn, clock, monkeypatch, capsys, tmp_path):
@@ -454,3 +483,192 @@ def test_patents_search_returns_3_when_kipris_refuses(conn, clock, monkeypatch, 
     assert "이번 실행 호출: 국내 1회, 해외 0회" in out and "⚠ KIPRIS 이번 달 한도가 끝나" in out
     assert "회 중 1회 씀" in out
     assert len(server.requests) == 1  # 거부당한 뒤로는 관심 키워드도 부르지 않는다
+
+
+# ---------------------------------------------------------------- KIPRIS 점검 (제대로 답하지 않음)
+
+OK = "<response><header><resultCode>00</resultCode></header><body><items></items></body></response>"
+ERROR_30 = "<response><header><resultCode>30</resultCode><resultMsg>bad request</resultMsg></header></response>"
+
+
+def _scripted(replies: list, requests: list) -> httpx.Client:
+    """차례대로 답하는 가짜 KIPRIS. 답은 (상태 코드, 본문)이고, 예외를 넣으면 그 호출은 접속 오류가 난다."""
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        reply = replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return httpx.Response(reply[0], text=reply[1])
+
+    return HttpClient(transport=httpx.MockTransport(handle))
+
+
+def _attempt(client) -> str:
+    """한국 검색 한 번의 결과: 'ok', 'error'(그 호출만 실패), 'down'(이번 실행의 호출을 멈춤)."""
+    try:
+        client.search("KR", KW)
+    except patents.KiprisDownError:
+        return "down"
+    except patents.KiprisError:
+        return "error"
+    return "ok"
+
+
+def test_three_unreadable_replies_in_a_row_stop_the_run_without_calling_or_counting(conn, clock):
+    server = FakeKipris()
+    server.maintenance = True
+    client = KiprisClient(conn, "KEY", PatentSettings(), server.http())
+
+    assert [_attempt(client) for _ in range(3)] == ["error", "error", "down"]
+    assert "연달아 3번 실패" in client.down and "응답을 읽지 못했어요" in client.down
+    assert len(server.requests) == 3 and patents.calls_total_this_month(conn) == 3  # 실패한 호출도 KIPRIS는 센다
+
+    # 그 뒤로는 점검이 끝났어도 이번 실행에서는 부르지도 세지도 않는다.
+    server.maintenance = False
+    with pytest.raises(patents.KiprisDownError):
+        client.details("US", "x")
+    assert _attempt(client) == "down"
+    assert len(server.requests) == 3 and patents.calls_total_this_month(conn) == 3
+    assert client.run_calls == {"kr": 3, "foreign": 0}
+    # 한도 초과와 달리 그 달을 막지 않는다. 다음 실행(새 클라이언트)에서는 다시 부른다.
+    assert client.blocked is None and patents.quota_block(conn) is None
+    assert _attempt(KiprisClient(conn, "KEY", PatentSettings(), server.http())) == "ok"
+    assert len(server.requests) == 4
+
+
+def test_connection_and_http_errors_count_as_outage_and_never_show_the_key(conn, clock):
+    requests: list = []
+    replies = [httpx.ConnectTimeout("timed out"), (503, "Service Unavailable"), (404, MAINTENANCE)]
+    # httpx는 오류 문장의 주소에 키를 퍼센트 인코딩해 넣는다. '+'·'/'·'='가 든 키로 그 모양도 가려지는지 본다.
+    client = KiprisClient(conn, "SE+CR/ET==", PatentSettings(), _scripted(replies, requests))
+
+    assert [_attempt(client) for _ in range(3)] == ["error", "error", "down"]
+    assert "404" in client.down and "***" in client.down
+    assert "SE+CR/ET" not in client.down and "SE%2BCR%2FET" not in client.down
+    assert _attempt(client) == "down" and len(requests) == 3
+
+
+# 올바른 XML이지만 KIPRIS 답(<response>)이 아닌 점검 안내 페이지
+WELL_FORMED_PAGE = "<html><body><h1>점검 중</h1></body></html>"
+
+
+def test_a_well_formed_page_that_is_not_a_kipris_reply_counts_as_outage(conn, clock):
+    requests: list = []
+    client = KiprisClient(conn, "KEY", PatentSettings(), _scripted([(200, WELL_FORMED_PAGE)] * 3, requests))
+    assert [_attempt(client) for _ in range(3)] == ["error", "error", "down"]
+    assert _attempt(client) == "down" and len(requests) == 3
+
+
+def test_collect_never_reads_a_well_formed_page_as_no_results(conn, clock):
+    # 정상 답으로 읽으면 검색마다 '결과 없음'이 붙고 그날 예산을 다 쓴다 (2026-11-07과 같은 일).
+    requests: list = []
+    client = KiprisClient(conn, "KEY", PatentSettings(), _scripted([(200, WELL_FORMED_PAGE)] * 3, requests), budget=30)
+    keywords = [Keyword("가", "ga"), Keyword("나", "na", ("KR",))]
+
+    content = patents.collect(conn, client, keywords, DAY, PatentSettings())
+
+    assert len(requests) == 3 and "연달아 3번" in content["kipris_down"]
+    assert not any("결과 없음" in w for w in content["warnings"])
+    assert sum(w.startswith(patents.DOWN_STOP) for w in content["warnings"]) == 1
+
+
+def test_a_proper_xml_reply_starts_the_count_again(conn, clock):
+    # XML로 답했으면 KIPRIS는 살아 있다. 정상 답, 요청마다 다른 오류 코드(22 말고), 4xx에 담긴 XML 오류 모두 연속 실패를 끊는다.
+    down, requests = (200, MAINTENANCE), []
+    replies = [down, down, (200, OK), down, down, (200, ERROR_30), down, down, (400, ERROR_30), down, down, down]
+    client = KiprisClient(conn, "KEY", PatentSettings(), _scripted(replies, requests))
+
+    assert [_attempt(client) for _ in range(12)] == ["error", "error", "ok"] + ["error"] * 8 + ["down"]
+    assert len(requests) == 12
+
+
+def test_kipris_error_codes_never_stop_the_run(conn, clock):
+    requests: list = []
+    client = KiprisClient(conn, "KEY", PatentSettings(), _scripted([(200, ERROR_30), (400, ERROR_30)] * 3, requests))
+    for _ in range(6):
+        with pytest.raises(patents.KiprisError, match="KIPRIS 오류 30: bad request") as e:
+            client.search("KR", KW)
+        assert not isinstance(e.value, (patents.KiprisDownError, KiprisQuotaError))
+    assert client.down is None and len(requests) == 6
+
+
+def test_collect_stops_searching_and_skips_details_when_kipris_is_down(conn, clock):
+    server = FakeKipris(kr={"가": ["K1"]})
+    search = server.handle
+
+    def handle(req):
+        server.maintenance = bool(server.requests)  # 첫 검색 뒤로 점검이 시작된다
+        return search(req)
+
+    server.handle = handle
+    client = KiprisClient(conn, "KEY", PatentSettings(), server.http(), budget=30)
+    keywords = [Keyword("가", "ga", ("KR",)), Keyword("나", "na"), Keyword("다", "da", ("KR",))]
+
+    content = patents.collect(conn, client, keywords, DAY, PatentSettings())
+
+    # 한국 '가'(성공) → 한국·미국 '나'(점검 페이지) → 중국 '나'에서 연달아 3번째라 멈춘다.
+    # '다' 검색과 '가'에서 고른 새 특허의 상세 조회는 하지 않는다.
+    assert len(server.requests) == 4 and server.paths("/getBibliographyDetailInfoSearch") == 0
+    assert patents.calls_total_this_month(conn) == 4
+    down = [w for w in content["warnings"] if w.startswith(patents.DOWN_STOP)]
+    assert len(down) == 1 and "연달아 3번 실패" in down[0] and down[0].endswith("다음 실행에서 다시 찾아요.")
+    assert [w for w in content["warnings"] if "검색 실패" in w] == [
+        "한국 '나' 검색 실패: KIPRIS 응답을 읽지 못했어요", "미국 '나' 검색 실패: KIPRIS 응답을 읽지 못했어요"]
+    assert not any("결과 없음" in w for w in content["warnings"])  # 실패한 검색에 '결과 없음'을 덧붙이지 않는다
+    assert "연달아 3번" in content["kipris_down"] and content["quota_stop"] is None and patents.quota_block(conn) is None
+    assert len(content["items"]) == 1  # 멈추기 전에 고른 새 특허는 남는다
+    saved = json.loads(conn.execute("SELECT content FROM patent_briefings").fetchone()[0])
+    assert saved["kipris_down"] == content["kipris_down"]
+
+    # 순위만 다시 매기면 그날 값과 경고를 그대로 둔다.
+    again = patents.collect(conn, None, [], DAY, PatentSettings())
+    assert again["kipris_down"] == content["kipris_down"] and again["warnings"] == content["warnings"]
+
+
+def test_rescore_reads_old_briefings_without_kipris_down(conn):
+    old = {"keywords": [], "items": [], "warnings": ["w"], "quota_stop": None}  # kipris_down이 생기기 전 형식
+    conn.execute("INSERT INTO patent_briefings (day, content, created_at) VALUES (?, ?, 't')",
+                 (DAY.isoformat(), json.dumps(old)))
+    content = patents.collect(conn, None, [], DAY, PatentSettings())
+    assert content["kipris_down"] is None and content["quota_stop"] is None and content["warnings"] == ["w"]
+
+
+def test_patents_search_returns_3_when_kipris_is_down(conn, clock, monkeypatch, capsys, tmp_path):
+    _briefing_db(conn)
+    server = FakeKipris()
+    server.maintenance = True
+    monkeypatch.setattr(cli, "kipris_api_key", lambda: "KEY")
+    monkeypatch.setattr(cli, "load_patent_settings", lambda: PatentSettings())
+    monkeypatch.setattr(cli.db, "session", lambda *a, **k: contextlib.nullcontext(conn))
+    monkeypatch.setattr(cli.httpx, "Client", lambda *a, **k: server.http())
+
+    assert cli.cmd_patents_search(Namespace(keyword=None, day=DAY.isoformat(), out=str(tmp_path / "p.json"))) == 3
+    out = capsys.readouterr().out
+    assert ("⚠ KIPRIS가 제대로 답하지 않아(점검 중일 수 있어요) 특허 검색을 멈췄어요. "
+            "새 특허가 0건이면 페이지·GitHub에 올리지 말고 보고만 하세요.") in out
+    assert "이번 실행 호출: 국내 1회, 해외 2회" in out and "회 중 3회 씀" in out
+    assert len(server.requests) == 3  # 멈춘 뒤로는 관심 키워드도 부르지 않는다
+
+
+def test_deep_and_star_checks_stop_once_when_kipris_is_down(conn, clock):
+    server = FakeKipris()
+    server.maintenance = True
+    client = KiprisClient(conn, "KEY", PatentSettings(), server.http())
+    topic = deep.DeepTopic("t", [deep.DeepQuery("g1", "가", '"a"'), deep.DeepQuery("g2", "나", '"b"')])
+    lines: list[str] = []
+
+    hits, runs = deep.collect(client, topic, today=DAY, log=lines.append)
+    # 한국·미국 '가'(점검 페이지) → 중국에서 연달아 3번째라 멈춘다. g2는 부르지 않고 줄도 남기지 않는다.
+    assert len(server.requests) == 3 and not hits and len(lines) == 3 and "남은 검색을 멈췄어요" in lines[-1]
+    # 부르지 않은 검색도 '건너뜀'으로 적어서, 저장한 JSON만 보고도 중간에 멈춘 것을 안다.
+    assert [(r["group"], r["country"]) for r in runs] == [(g, c) for g in ("g1", "g2") for c in ("KR", "US", "CN")]
+    assert [r["error"].startswith("건너뜀: 연달아 3번 실패") for r in runs] == [False] * 3 + [True] * 3
+
+    warnings = deep.fill_details(client, [deep.Hit(found("KR", f"k{n}")) for n in range(3)], log=lines.append)
+    assert len(warnings) == 1 and "상세 조회 3건을 멈췄어요" in warnings[0] and len(lines) == 4
+
+    conn.executemany("INSERT INTO stars (key, starred_at) VALUES (?, 't')", [("KR-1",), ("KR-2",)])
+    changes, warnings = stars.check(conn, client)
+    assert changes == [] and len(warnings) == 1 and "상태 확인 2건을 멈췄어요" in warnings[0]
+    assert len(server.requests) == 3

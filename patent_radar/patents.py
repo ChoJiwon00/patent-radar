@@ -61,6 +61,15 @@ class KiprisBudgetError(KiprisError):
     """이번 실행의 하루 호출 예산을 다 썼다."""
 
 
+class KiprisDownError(KiprisError):
+    """KIPRIS가 제대로 답하지 않는다 (점검·장애). 연달아 DOWN_AFTER번 실패하면 그 실행의 호출을 멈춘다."""
+
+
+# KIPRIS가 연달아 이만큼 제대로 답하지 않으면(접속 오류·HTTP 오류·KIPRIS 답이 아닌 점검 안내 페이지) 점검 중으로 본다.
+# 2026-11-07 점검 날에는 검색 30번이 모두 실패하고 그날 예산을 다 썼다.
+DOWN_AFTER = 3
+
+
 @dataclass(frozen=True)
 class Keyword:
     ko: str
@@ -181,6 +190,33 @@ def check_response(root: ET.Element) -> None:
         # 22는 이번 달 무료 한도를 다 써서 거부한 것이다. 그 달에는 다시 불러도 계속 거부된다.
         error = KiprisQuotaError if code == "22" else KiprisError
         raise error(f"KIPRIS 오류 {code}: {msg or '자세한 이유가 없어요'}")
+
+
+def _kipris_xml(text: str) -> ET.Element:
+    """KIPRIS 답 XML. KIPRIS Plus는 <response>로 답하므로(국내 검색, 해외 청구항·초록 실제 응답으로 확인), 맨 바깥이
+    <response>가 아니고 header·resultCode도 없는 XML은 읽지 못한 답(ParseError)으로 본다.
+    점검 안내 페이지가 우연히 올바른 XML(<html>…)이어도 '결과 0건'인 정상 답으로 읽지 않게 하려는 것이다."""
+    root = ET.fromstring(text)
+    if root.tag != "response" and root.find(".//header") is None and root.find(".//resultCode") is None:
+        raise ET.ParseError(f"KIPRIS 답이 아니에요 (<{root.tag}>)")
+    return root
+
+
+def read_reply(resp: httpx.Response) -> ET.Element:
+    """KIPRIS 응답 XML. HTTP 오류(4xx·5xx)면 HTTPStatusError, KIPRIS 답(<response>)이 아니면 ParseError를 낸다.
+
+    4xx라도 KIPRIS가 오류 코드(resultCode)를 담은 XML을 보냈으면 그 XML을 돌려준다. 서비스는 살아 있고
+    그 요청만 거부한 것이라 check_response가 다룬다.
+    """
+    if resp.is_client_error:
+        try:
+            root = _kipris_xml(resp.text)
+        except ET.ParseError:
+            root = None
+        if root is not None and (root.findtext(".//resultCode") or "").strip() not in ("", "00"):
+            return root
+    resp.raise_for_status()
+    return _kipris_xml(resp.text)
 
 
 def _kr_number(open_no: str | None, reg_no: str | None, app_no: str) -> str:
@@ -423,6 +459,8 @@ class KiprisClient:
 
     budget: 이번 실행에서 쓸 수 있는 호출 수(하루 예산). None이면 월 상한만 지킨다.
     KIPRIS가 한도 초과(오류 22)로 거부하면 그 달을 api_blocks에 적고, 그 달에는 더 부르지 않는다.
+    KIPRIS가 연달아 DOWN_AFTER번 제대로 답하지 않으면(점검·장애) 이번 실행에서는 더 부르지 않는다.
+    점검은 잠깐이라 다음 실행에서는 다시 부른다.
     """
 
     def __init__(self, conn: sqlite3.Connection, key: str, settings: PatentSettings, http: httpx.Client,
@@ -431,6 +469,8 @@ class KiprisClient:
         self.budget = budget
         self.run_calls = {"kr": 0, "foreign": 0}  # 이번 실행에서 부른 횟수
         self.blocked: str | None = None  # 이번 달 호출을 멈춘 이유
+        self.down: str | None = None  # KIPRIS가 제대로 답하지 않아 이번 실행의 호출을 멈춘 이유
+        self.failures = 0  # 연달아 제대로 답하지 않은 횟수
 
     def remaining(self) -> int | None:
         """하루 예산에서 남은 호출 수. 예산을 정하지 않았으면 None."""
@@ -438,9 +478,28 @@ class KiprisClient:
             return None
         return max(self.budget - sum(self.run_calls.values()), 0)
 
+    def _hide_key(self, text: str) -> str:
+        """오류 문장에서 인증키를 가린다. httpx는 오류 문장의 주소에 키를 퍼센트 인코딩해 넣으므로
+        ('+'·'/'·'='가 든 키는 'Ab%2Bc%2Fd%3D%3D'처럼) 그 모양도 함께 가린다."""
+        encoded = str(httpx.QueryParams({"k": self.key}))[2:]
+        for form in sorted({self.key, encoded}, key=len, reverse=True):
+            if form:
+                text = text.replace(form, "***")
+        return text
+
+    def _outage(self, reason: str) -> KiprisError:
+        """제대로 답하지 않은 호출의 오류. 연달아 DOWN_AFTER번째면 이번 실행의 호출을 멈춘다."""
+        self.failures += 1
+        if self.failures < DOWN_AFTER:
+            return KiprisError(reason)
+        self.down = f"연달아 {self.failures}번 실패, 마지막 오류: {reason}"
+        return KiprisDownError(self.down)
+
     def _call(self, service: str, url: str, params: dict) -> ET.Element:
         month = datetime.now(KST).strftime("%Y-%m")
-        # 거부당한 달에 더 부르면 호출 수만 늘고 결과는 없다. 아래 세 경우는 부르지도 세지도 않는다.
+        # 거부당한 달이나 점검 중에 더 부르면 호출 수만 늘고 결과는 없다. 아래 네 경우는 부르지도 세지도 않는다.
+        if self.down:
+            raise KiprisDownError(self.down)
         self.blocked = self.blocked or quota_block(self.conn, month)
         if self.blocked:
             raise KiprisQuotaError(self.blocked)
@@ -459,13 +518,14 @@ class KiprisClient:
         self.conn.commit()
         self.run_calls[service] += 1
         try:
-            resp = self.http.get(url, params=params)
-            resp.raise_for_status()
-            root = ET.fromstring(resp.text)
+            root = read_reply(self.http.get(url, params=params))
         except httpx.HTTPError as e:
-            raise KiprisError(f"{type(e).__name__}: {str(e).replace(self.key, '***')}") from None
+            raise self._outage(f"{type(e).__name__}: {self._hide_key(str(e))}") from None
         except ET.ParseError:
-            raise KiprisError("KIPRIS 응답을 읽지 못했어요") from None
+            # 점검 날에는 KIPRIS 답(XML) 대신 안내 페이지(HTML)가 온다.
+            raise self._outage("KIPRIS 응답을 읽지 못했어요") from None
+        # KIPRIS 답(XML)이 왔으면 KIPRIS는 살아 있다. 요청마다 다른 오류 코드가 와도 연속 실패는 끊긴다.
+        self.failures = 0
         try:
             check_response(root)
         except KiprisQuotaError as e:
@@ -608,12 +668,23 @@ def importance(conn: sqlite3.Connection, patent_id: int, day: date, window_days:
 
 
 QUOTA_STOP = "KIPRIS 이번 달 무료 한도가 끝나 특허 검색을 멈췄어요"
+NOT_ANSWERING = "KIPRIS가 제대로 답하지 않아(점검 중일 수 있어요)"
+DOWN_STOP = f"{NOT_ANSWERING} 특허 검색을 멈췄어요"
+# 검색을 멈춘 까닭(그날 브리핑에 적는 이름) → 경고 앞부분과 뒷부분
+STOPS = {"quota_stop": (QUOTA_STOP, "매월 1일에 다시 열려요."),
+         "kipris_down": (DOWN_STOP, "다음 실행에서 다시 찾아요.")}
 
 
-def _quota_warning(warnings: list[str], reason: str) -> None:
-    """한도 경고는 한 번만 남긴다."""
-    if not any(w.startswith(QUOTA_STOP) for w in warnings):
-        warnings.append(f"{QUOTA_STOP} ({reason}). 매월 1일에 다시 열려요.")
+def _stop(e: KiprisError) -> tuple[str, str]:
+    """더 불러도 소용없는 오류(한도·점검) → (멈춘 까닭, 이유)."""
+    return ("quota_stop" if isinstance(e, KiprisQuotaError) else "kipris_down"), str(e)
+
+
+def _stop_warning(warnings: list[str], kind: str, reason: str) -> None:
+    """한도·점검 경고는 한 번만 남긴다."""
+    head, tail = STOPS[kind]
+    if not any(w.startswith(head) for w in warnings):
+        warnings.append(f"{head} ({reason}). {tail}")
 
 
 def _needs_details(conn: sqlite3.Connection, patent_id: int) -> bool:
@@ -622,8 +693,11 @@ def _needs_details(conn: sqlite3.Connection, patent_id: int) -> bool:
     return not (p["claims"] or (p["country"] == "CN" and p["abstract"]))
 
 
-def _fill_details(conn: sqlite3.Connection, client, patent_ids, warnings: list[str]) -> str | None:
-    """상세가 없는 특허의 청구항·초록을 가져온다. 이번 달 한도가 끝나 멈췄으면 그 이유를 돌려준다."""
+def _fill_details(conn: sqlite3.Connection, client, patent_ids, warnings: list[str]) -> tuple[str, str] | None:
+    """상세가 없는 특허의 청구항·초록을 가져온다.
+
+    이번 달 한도가 끝나거나 KIPRIS가 제대로 답하지 않아 멈췄으면 (멈춘 까닭, 이유)를 돌려준다.
+    """
     if client is None:  # 순위만 다시 매길 때(rescore)는 KIPRIS를 부르지 않는다
         return None
     todo = [pid for pid in patent_ids if _needs_details(conn, pid)]
@@ -631,9 +705,10 @@ def _fill_details(conn: sqlite3.Connection, client, patent_ids, warnings: list[s
         p = conn.execute("SELECT country, doc_key FROM patents WHERE id = ?", (pid,)).fetchone()
         try:
             d = client.details(p["country"], p["doc_key"])
-        except KiprisQuotaError as e:
-            _quota_warning(warnings, str(e))
-            return str(e)
+        except (KiprisQuotaError, KiprisDownError) as e:
+            stop = _stop(e)
+            _stop_warning(warnings, *stop)
+            return stop
         except KiprisBudgetError:
             warnings.append(f"하루 호출 예산이 끝나 상세 조회 {len(todo) - n}건을 다음 실행으로 미뤘어요")
             return None
@@ -684,7 +759,8 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
     pending = {pid for pid in new_keyword if _needs_details(conn, pid)}  # 상세를 아직 못 가져온 새 특허
     skipped: list[str] = []  # 예산 때문에 건너뛴 검색
     tried: set[str] = set()  # 실제로 검색한 키워드 (실패 포함). 건너뛴 키워드는 '검색 키워드'에 적지 않는다.
-    quota_stop: str | None = None  # 이번 달 한도가 끝나 멈췄으면 그 이유
+    # 이번 달 한도가 끝나거나("quota_stop") KIPRIS가 제대로 답하지 않아("kipris_down") 멈췄으면 (까닭, 이유)
+    stop: tuple[str, str] | None = None
 
     def out_of_budget() -> bool:
         # 검색 한 번과 그 검색에서 고를 새 특허의 상세 한 번을 할 수 있어야 검색한다.
@@ -708,8 +784,8 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
                     retries_left -= 1
                 try:
                     raw = client.search(country, replace(kw, ko=term))
-                except KiprisQuotaError as e:
-                    quota_stop = str(e)
+                except (KiprisQuotaError, KiprisDownError) as e:
+                    stop = _stop(e)
                     break
                 except KiprisError as e:
                     warnings.append(f"{COUNTRY_NAMES[country]} '{term}' 검색 실패: {e}")
@@ -724,7 +800,7 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
                     if n:
                         warnings.append(f"{COUNTRY_NAMES[country]} '{kw.ko}': 결과가 없어 '{term}'(으)로 다시 찾음")
                     break
-            if quota_stop:
+            if stop:
                 break
             if not found:
                 # 검색이 실패했거나 예산 때문에 건너뛰었으면 '결과 없음'이 아니다.
@@ -747,17 +823,17 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
                         pending.add(pid)
             if not picked:
                 warnings.append(f"{COUNTRY_NAMES[country]} '{kw.ko}': 새 특허 없음 (모두 이미 본 특허)")
-        if quota_stop:
+        if stop:
             break
 
     if skipped:
         warnings.append(f"하루 호출 예산({client.budget}회) 때문에 검색 {len(skipped)}개를 건너뛰었어요: "
                         + ", ".join(skipped))
-    if quota_stop:
-        _quota_warning(warnings, quota_stop)
+    if stop:
+        _stop_warning(warnings, *stop)
     else:
         # 새 특허의 청구항부터 가져와야 청구항 수가 점수에 들어간다.
-        quota_stop = _fill_details(conn, client, list(new_keyword), warnings)
+        stop = _fill_details(conn, client, list(new_keyword), warnings)
 
     since = (day - timedelta(days=settings.hot_window_days - 1)).isoformat()
     recent = [r[0] for r in conn.execute(
@@ -770,8 +846,8 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
                  for pid in hot}
     hot.sort(key=lambda pid: (scored[pid][0], published[pid]), reverse=True)
     spotlight = hot[: settings.spotlight_size]
-    if not quota_stop:
-        quota_stop = _fill_details(conn, client, spotlight, warnings)
+    if not stop:
+        stop = _fill_details(conn, client, spotlight, warnings)
 
     def latest_keyword(pid: int) -> str:
         return conn.execute(
@@ -796,9 +872,12 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
     new_keywords = ({"ko": k.ko, "en": k.en, "interest": k.interest} for k in keywords if k.ko in tried)
     all_keywords = old["keywords"] + [k for k in new_keywords
                                       if k["ko"] not in {o["ko"] for o in old["keywords"]}]
-    # quota_stop: 이번 달 한도가 끝나 검색·상세 조회를 멈췄으면 그 이유. 순위만 다시 매기면 그날 값을 그대로 둔다.
-    content = {"keywords": all_keywords, "items": items, "warnings": warnings,
-               "quota_stop": quota_stop if keywords else old.get("quota_stop")}
+    # quota_stop: 이번 달 한도가 끝나, kipris_down: KIPRIS가 제대로 답하지 않아 검색·상세 조회를 멈췄으면 그 이유.
+    # 순위만 다시 매기면 그날 값을 그대로 둔다. 예전 브리핑에는 kipris_down이 없다.
+    stops = dict.fromkeys(STOPS) if keywords else {kind: old.get(kind) for kind in STOPS}
+    if stop:
+        stops[stop[0]] = stop[1]
+    content = {"keywords": all_keywords, "items": items, "warnings": warnings, **stops}
     conn.execute(
         "INSERT OR REPLACE INTO patent_briefings (day, content, created_at) VALUES (?, ?, ?)",
         (day_s, json.dumps(content, ensure_ascii=False), datetime.now(KST).isoformat(timespec="seconds")),

@@ -21,8 +21,8 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from .config import KST
-from .patents import FOREIGN_SEARCH, KR_BASE, Found, KiprisClient, KiprisError, matches_ipc, parse_foreign_search, \
-    parse_kr_search
+from .patents import FOREIGN_SEARCH, KR_BASE, NOT_ANSWERING, Found, KiprisClient, KiprisDownError, KiprisError, \
+    matches_ipc, parse_foreign_search, parse_kr_search
 
 
 @dataclass(frozen=True)
@@ -82,22 +82,32 @@ def collect(client: KiprisClient, topic: DeepTopic, rows: int = 30, today: date 
     since = (today - timedelta(days=365 * topic.recent_years)).isoformat()
     hits: dict[tuple[str, str], Hit] = {}
     runs = []
+    down = None  # KIPRIS가 제대로 답하지 않아 남은 검색을 멈춘 이유
     for i, q in enumerate(topic.queries):
         for country in q.countries:
             label = q.ko if country == "KR" else q.en
+            run = {"query": i, "group": q.group, "country": country, "text": label}
+            if down:
+                # 부르지 않은 검색도 적어 둬요. 저장한 JSON만 보고도 모으기가 중간에 멈춘 것을 알 수 있게요.
+                runs.append({**run, "error": f"건너뜀: {down}"})
+                continue
             try:
                 found = _search(client, country, q, rows)
             except KiprisError as e:
-                runs.append({"query": i, "group": q.group, "country": country, "text": label, "error": str(e)})
-                log(f"[{country}] {label}: 오류 {e}")
+                runs.append({**run, "error": str(e)})
+                if isinstance(e, KiprisDownError):
+                    # 그 뒤 검색도 모두 같은 오류라서 한 줄만 남기고, 남은 검색은 부르지 않아요.
+                    down = str(e)
+                    log(f"[{country}] {label}: {NOT_ANSWERING} 남은 검색을 멈췄어요 ({e})")
+                else:
+                    log(f"[{country}] {label}: 오류 {e}")
                 continue
             kept = [f for f in found if (f.published_at or "") >= since and matches_ipc(f.ipc, topic.ipc)]
             for f in kept:
                 hit = hits.setdefault((f.country, f.doc_key), Hit(f))
                 hit.groups.add(q.group)
                 hit.queries.add(f"{country}:{label}")
-            runs.append({"query": i, "group": q.group, "country": country, "text": label,
-                         "found": len(found), "kept": len(kept)})
+            runs.append({**run, "found": len(found), "kept": len(kept)})
             log(f"[{country}] {label}: {len(found)}건 중 {len(kept)}건")
     return hits, runs
 
@@ -115,9 +125,13 @@ def pick_for_details(hits: dict[tuple[str, str], Hit], per_country: dict[str, in
 
 def fill_details(client: KiprisClient, chosen: list[Hit], log=print) -> list[str]:
     warnings = []
-    for h in chosen:
+    for n, h in enumerate(chosen):
         try:
             h.details = client.details(h.found.country, h.found.doc_key)
+        except KiprisDownError as e:
+            warnings.append(f"{NOT_ANSWERING} 상세 조회 {len(chosen) - n}건을 멈췄어요 ({e})")
+            log(warnings[-1])
+            break
         except KiprisError as e:
             warnings.append(f"{h.found.number}: {e}")
             log(f"상세 조회 실패 {h.found.number}: {e}")

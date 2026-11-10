@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import KST
-from .patents import KiprisError, display_url
+from .patents import NOT_ANSWERING, KiprisDownError, KiprisError, display_url
 
 
 def read_page_docs(folder: Path) -> list[dict]:
@@ -54,10 +54,15 @@ def check(conn: sqlite3.Connection, client) -> tuple[list[dict], list[str]]:
     """한국 관심 특허의 진행 상태를 다시 확인한다. (바뀐 것 목록, 경고)"""
     now = datetime.now(KST).isoformat(timespec="seconds")
     changes, warnings = [], []
-    for s in conn.execute("SELECT key, patent_id, status FROM stars WHERE key LIKE 'KR-%'").fetchall():
+    rows = conn.execute("SELECT key, patent_id, status FROM stars WHERE key LIKE 'KR-%'").fetchall()
+    for n, s in enumerate(rows):
         doc_key = s["key"].split("-", 1)[1]
         try:
             status = client.details("KR", doc_key).get("status")
+        except KiprisDownError as e:
+            # 그 뒤 특허도 모두 같은 오류라서 한 줄만 남기고 멈춘다. 다음 확인 때 다시 본다.
+            warnings.append(f"{NOT_ANSWERING} 상태 확인 {len(rows) - n}건을 멈췄어요 ({e})")
+            break
         except KiprisError as e:
             warnings.append(f"{s['key']} 상태 확인 실패: {e}")
             continue

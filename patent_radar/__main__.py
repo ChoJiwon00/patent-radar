@@ -196,6 +196,10 @@ def cmd_patents_search(args: argparse.Namespace) -> int:
         if content["quota_stop"]:
             print("⚠ KIPRIS 이번 달 한도가 끝나 특허 검색을 멈췄어요. 새 특허가 0건이면 페이지·GitHub에 올리지 말고 보고만 하세요.")
             return 3
+        if content["kipris_down"]:
+            print("⚠ KIPRIS가 제대로 답하지 않아(점검 중일 수 있어요) 특허 검색을 멈췄어요. "
+                  "새 특허가 0건이면 페이지·GitHub에 올리지 말고 보고만 하세요.")
+            return 3
     return 0
 
 
@@ -391,7 +395,10 @@ def cmd_patents_deep(args: argparse.Namespace) -> int:
             hits, runs = deep.collect(client, topic, rows=args.rows)
             chosen = deep.pick_for_details(hits, per_country) if not args.no_details else []
             warnings = deep.fill_details(client, chosen)
-            after = {s: patents.calls_this_month(conn, s) for s in ("kr", "foreign")}
+            if client.down and not any(w.startswith(patents.NOT_ANSWERING) for w in warnings):
+                # 상세 조회할 특허가 없었어도(--no-details 포함) 저장한 JSON에 모으기가 중간에 멈춘 것을 남긴다.
+                warnings.insert(0, f"{patents.NOT_ANSWERING} 심층 모으기를 멈췄어요 ({client.down})")
+            after ={s: patents.calls_this_month(conn, s) for s in ("kr", "foreign")}
             data = deep.to_json(topic, hits, runs, warnings, {"before": before, "after": after})
     deep.save(data, args.out)
     used = {s: after[s] - before[s] for s in after}
