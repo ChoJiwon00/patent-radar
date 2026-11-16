@@ -101,9 +101,10 @@ def build_stats(conn: sqlite3.Connection, end: date, topic_order: list[str] | No
                        key=lambda p: (p["rank"], -p["score"]))
     companies = [brief(pid) for pid in relevant if shown[pid]["company"]]
 
-    star_list = stars.listing(conn)
+    # 지난 주간을 다시 만들 때도 그 주의 모습이 되도록, 주간 뒤에 별표한 특허는 빼고 그 주 안의 변화만 센다.
+    star_list = [s for s in stars.listing(conn) if (s["starred_at"] or "")[:10] <= days[-1]]
     for s in star_list:
-        s["changed_this_week"] = bool(s["changed_at"] and s["changed_at"][:10] >= days[0])
+        s["changed_this_week"] = bool(s["changed_at"] and days[0] <= s["changed_at"][:10] <= days[-1])
 
     return {
         "start": days[0], "end": days[-1], "days": days,

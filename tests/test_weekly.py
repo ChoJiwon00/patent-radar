@@ -99,3 +99,17 @@ def test_site_export(conn, tmp_path, monkeypatch):
     assert len(day["patents"]["items"]) == 1 and len(day["patents"]["low"]) == 1
     html = (tmp_path / "docs" / "index.html").read_text(encoding="utf-8")
     assert html.startswith("<!doctype html>") and "<main></main>" in html
+
+
+def test_rebuilding_a_past_week_uses_only_that_weeks_stars(conn):
+    pid = conn.execute("SELECT id FROM patents LIMIT 1").fetchone()[0]
+    conn.execute("INSERT INTO stars (key, patent_id, starred_at, status, changed_at) VALUES (?, ?, ?, ?, ?)",
+                 ("a", pid, "2026-10-16T09:00:00+09:00", "등록", "2026-10-30T09:00:00+09:00"))
+    conn.execute("INSERT INTO stars (key, patent_id, starred_at, status, changed_at) VALUES (?, ?, ?, ?, ?)",
+                 ("b", pid, "2026-10-25T09:00:00+09:00", "공개", None))
+
+    listed = weekly.build_stats(conn, END, ["이차전지"])["stars"]
+
+    # 주간(10-15~10-21) 뒤에 별표한 b는 빠지고, a의 상태 변화(10-30)는 이 주의 변화가 아니다.
+    assert [s["key"] for s in listed] == ["a"]
+    assert listed[0]["changed_this_week"] is False
