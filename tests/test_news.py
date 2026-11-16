@@ -182,3 +182,39 @@ def test_collect_for_a_skipped_day_saves_articles_as_that_days_news(monkeypatch)
     assert [a["title"] for a in got] == ["건너뛴 날 기사"]
     # 수집 시각 자리에 기간의 끝을 적어 다음 날 채울 때 시작점이 된다
     assert got[0]["fetched_at"] == "2026-11-15T00:12:00+09:00"
+
+
+def test_normal_collection_after_a_late_run_continues_from_the_last_collection():
+    conn = db.connect(":memory:")
+    _collected(conn, "g1", "2026-11-11T00:12:00+09:00")
+    late = datetime(2026, 11, 12, 21, 30, tzinfo=KST)  # 앱을 밤에 열어 늦게 실행
+
+    # 최근 하루(11-11 21:30~)만 찾으면 11-11 00:12~21:30이 빈다. 그 사이부터 이어서 찾는다.
+    assert news.catch_up_window(conn, late) == (datetime(2026, 11, 11, 0, 12, tzinfo=KST), late)
+    # 마지막 수집이 하루 안이면 평소처럼 최근 하루만
+    assert news.catch_up_window(conn, datetime(2026, 11, 11, 23, 0, tzinfo=KST)) is None
+    # 처음 실행이면 평소처럼
+    assert news.catch_up_window(db.connect(":memory:"), late) is None
+
+
+def test_normal_collection_continues_right_after_a_filled_day(monkeypatch):
+    conn = db.connect(":memory:")
+    _collected(conn, "g1", "2026-11-16T00:12:00+09:00")
+    seen = []
+    monkeypatch.setattr(news, "fetch_query", lambda c, q, s, window=None: seen.append(window) or [
+        news.Article(f"a{len(seen)}", f"기사 {len(seen)}", "B", f"https://x/{len(seen)}", "2026-11-16T10:00+09:00")])
+    fill_at = datetime(2026, 11, 18, 0, 12, tzinfo=KST)
+    news.collect(conn, _settings(), day=date(2026, 11, 17), now=fill_at)
+    today_at = datetime(2026, 11, 18, 0, 40, tzinfo=KST)  # 브리핑을 쓰느라 28분 뒤에 오늘 수집
+    news.collect(conn, _settings(), now=today_at)
+
+    # 채운 기간의 끝(11-17 00:12)에서 오늘 수집이 이어져 그 사이 28분이 비지 않는다
+    assert seen[1] == (datetime(2026, 11, 17, 0, 12, tzinfo=KST), today_at)
+
+
+def test_catch_up_window_is_at_most_three_days():
+    conn = db.connect(":memory:")
+    _collected(conn, "g1", "2026-11-01T00:12:00+09:00")
+    now = datetime(2026, 11, 12, 0, 12, tzinfo=KST)
+
+    assert news.catch_up_window(conn, now) == (datetime(2026, 11, 9, 0, 12, tzinfo=KST), now)

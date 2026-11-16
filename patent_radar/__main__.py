@@ -458,7 +458,7 @@ def main() -> int:
 
     p_news = sub.add_parser("news", help="뉴스 수집")
     p_news.add_argument("--json", action="store_true", help="오늘의 새 기사를 JSON으로 출력")
-    p_news.add_argument("--day", help="건너뛴 지난 날짜 YYYY-MM-DD를 채운다 (그 전 수집 뒤부터 그날 끝까지 나온 기사)")
+    p_news.add_argument("--day", help="건너뛴 지난 날짜 YYYY-MM-DD를 채운다 (앞뒤 수집과 겹치지 않는 그날 몫, 대체로 전날 나온 기사)")
     p_news.set_defaults(func=cmd_news)
 
     p_brief = sub.add_parser("briefing", help="AI 브리핑 저장·조회")

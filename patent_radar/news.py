@@ -142,6 +142,22 @@ def backfill_window(conn: sqlite3.Connection, day: date, lookback_days: int = 1,
     return start, max(start, end)
 
 
+def catch_up_window(conn: sqlite3.Connection, now: datetime, lookback_days: int = 1) -> tuple[datetime, datetime] | None:
+    """평소 수집의 기간. 마지막 수집이 lookback_days보다 오래됐으면 (마지막 수집, 지금), 아니면 None(최근 lookback_days일).
+
+    앱을 늦게 열어 0시 실행이 늦어지면 '최근 하루'만으로는 그 전 수집과의 사이가 빈다. 그때는 그 사이를 이어서 찾는다.
+    건너뛴 날을 채운 기간의 끝도 수집 시각 자리에 적혀 있어, 채운 뒤 오늘 수집이 그 끝에서 이어진다. 최대 사흘 치.
+    """
+    last = conn.execute("SELECT MAX(fetched_at) FROM news WHERE fetched_at <= ?",
+                        (now.isoformat(timespec="seconds"),)).fetchone()[0]
+    if not last:
+        return None
+    since = datetime.fromisoformat(last)
+    if since >= now - timedelta(days=lookback_days):
+        return None
+    return max(since, now - timedelta(days=3)), now
+
+
 def save_article(conn: sqlite3.Connection, a: Article, topic: str, query: str, fetched_at: str) -> bool:
     """새 기사면 저장하고 True를 돌려준다."""
     key = title_key(a.title)
@@ -164,8 +180,9 @@ def collect(conn: sqlite3.Connection, settings: NewsSettings | None = None,
     """
     settings = settings or load_news_settings()
     if day is None:
-        window = None
-        fetched_at = datetime.now(KST).isoformat(timespec="seconds")
+        now = now or datetime.now(KST)
+        window = catch_up_window(conn, now, settings.lookback_days)
+        fetched_at = now.isoformat(timespec="seconds")
     else:
         window = backfill_window(conn, day, settings.lookback_days, now)
         # 수집 시각 자리에 그 기간의 끝을 적는다. 그날 새 기사로 보이고(news_for_day), 다음 날 채울 때 시작점이 된다.
