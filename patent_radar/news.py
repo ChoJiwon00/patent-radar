@@ -4,6 +4,7 @@
 각 기사는 처음 수집된 날에만 '새 기사'로 나타난다.
 
 컴퓨터가 꺼져 있어 수집을 건너뛴 날은 `collect(conn, day=그날)`로 나중에 채운다 (지난 날짜 채우기).
+0시 실행은 그 전 하루의 기사를 모으므로, 그날 몫은 대체로 전날 나온 기사다 (backfill_window).
 """
 
 import math
@@ -114,17 +115,31 @@ def fetch_query(client: httpx.Client, query: str, settings: NewsSettings,
     return articles[:limit]
 
 
-def backfill_window(conn: sqlite3.Connection, day: date) -> tuple[datetime, datetime]:
-    """건너뛴 날 day를 채울 기간: 그 전 마지막 수집 때부터 day가 끝날 때까지 (한국 시간).
+def backfill_window(conn: sqlite3.Connection, day: date, lookback_days: int = 1,
+                    now: datetime | None = None) -> tuple[datetime, datetime]:
+    """건너뛴 날 day를 채울 기간 (시작 포함, 끝 미포함, 한국 시간).
 
-    그 사이에 나온 기사는 수집하지 못한 기사다. 뒤 수집과 겹치는 기사는 저장할 때 걸러진다.
-    여러 날을 건너뛰었으면 오래된 날부터 채운다 (앞날을 먼저 채우면 그 기간이 뒷날 몫까지 덮는다).
+    0시 실행은 그 전 하루에 나온 기사를 모으므로, day 몫은 대체로 전날(day-1)에 나온 기사다.
+    기간이 앞뒤 수집과 겹치거나 비지 않도록 이어 붙인다:
+    - 시작: 그 전 마지막 수집(또는 앞서 채운 날의 끝). 다만 전날 0시보다 앞으로는 가지 않는다.
+    - 끝: 다음 날 수집이 있으면 그 수집이 찾기 시작한 때(수집 시각 - lookback_days),
+      다음 날이 오늘이면 오늘 수집이 찾기 시작할 때(지금 - lookback_days),
+      다음 날도 건너뛴 날이면 day 0시 (그 뒤는 다음 날 몫).
+    여러 날을 건너뛰었으면 오래된 날부터 채운다 (앞날의 끝이 뒷날의 시작이 된다).
     """
-    end = datetime.combine(day + timedelta(days=1), time(), KST)
-    row = conn.execute("SELECT MAX(fetched_at) FROM news WHERE fetched_at < ?", (day.isoformat(),)).fetchone()
-    start = datetime.fromisoformat(row[0]) if row and row[0] else end - timedelta(days=1)
-    # 수집 기록이 오래 끊겼어도 사흘 치까지만 찾는다.
-    return max(start, end - timedelta(days=3)), end
+    now = now or datetime.now(KST)
+    floor = datetime.combine(day - timedelta(days=1), time(), KST)
+    prev = conn.execute("SELECT MAX(fetched_at) FROM news WHERE fetched_at < ?", (day.isoformat(),)).fetchone()[0]
+    start = max(datetime.fromisoformat(prev), floor) if prev else floor
+    next_day = day + timedelta(days=1)
+    nxt = conn.execute("SELECT MIN(fetched_at) FROM news WHERE fetched_at >= ?", (next_day.isoformat(),)).fetchone()[0]
+    if nxt and nxt[:10] == next_day.isoformat():
+        end = datetime.fromisoformat(nxt) - timedelta(days=lookback_days)
+    elif next_day >= now.date():
+        end = now - timedelta(days=lookback_days)
+    else:
+        end = datetime.combine(day, time(), KST)
+    return start, max(start, end)
 
 
 def save_article(conn: sqlite3.Connection, a: Article, topic: str, query: str, fetched_at: str) -> bool:
@@ -142,7 +157,7 @@ def save_article(conn: sqlite3.Connection, a: Article, topic: str, query: str, f
 
 
 def collect(conn: sqlite3.Connection, settings: NewsSettings | None = None,
-            day: date | None = None) -> list[FetchResult]:
+            day: date | None = None, now: datetime | None = None) -> list[FetchResult]:
     """설정된 모든 검색어로 뉴스를 가져와 새 기사만 저장한다.
 
     day: 건너뛴 지난 날짜. 주면 그날 몫(backfill_window)의 기사를 찾아 그날 수집한 기사로 저장한다.
@@ -152,9 +167,10 @@ def collect(conn: sqlite3.Connection, settings: NewsSettings | None = None,
         window = None
         fetched_at = datetime.now(KST).isoformat(timespec="seconds")
     else:
-        window = backfill_window(conn, day)
-        # news_for_day가 그날 새 기사로 보여 주도록 그날 마지막 시각으로 적는다.
-        fetched_at = datetime.combine(day, time(23, 59, 59), KST).isoformat()
+        window = backfill_window(conn, day, settings.lookback_days, now)
+        # 수집 시각 자리에 그 기간의 끝을 적는다. 그날 새 기사로 보이고(news_for_day), 다음 날 채울 때 시작점이 된다.
+        end = window[1]
+        fetched_at = (end if end.date() == day else datetime.combine(day, time(23, 59, 59), KST)).isoformat()
     results = []
     with httpx.Client(timeout=15, follow_redirects=True, headers={"User-Agent": USER_AGENT}) as client:
         for topic in settings.topics:

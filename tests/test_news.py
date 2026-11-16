@@ -85,27 +85,60 @@ def _settings(per_query=30):
     return NewsSettings(lookback_days=1, max_per_query=per_query, topics=[Topic("이차전지", ["리튬인산철"])])
 
 
-def test_backfill_window_starts_at_last_collection_before_the_day():
-    conn = db.connect(":memory:")
-    a = news.Article("g1", "앞 수집 기사", None, "https://x/1", None)
-    b = news.Article("g2", "뒤 수집 기사", None, "https://x/2", None)
-    news.save_article(conn, a, "이차전지", "q", "2026-11-14T00:12:30+09:00")
-    news.save_article(conn, b, "이차전지", "q", "2026-11-16T21:25:00+09:00")
+def _collected(conn, guid, fetched_at):
+    news.save_article(conn, news.Article(guid, f"기사 {guid}", None, f"https://x/{guid}", None), "이차전지", "q",
+                      fetched_at)
 
-    start, end = news.backfill_window(conn, date(2026, 11, 15))
+
+NOW = datetime(2026, 11, 18, 0, 12, tzinfo=KST)  # 11-18 0시 실행
+
+
+def test_backfill_window_for_one_skipped_day_ends_where_the_next_collection_starts():
+    conn = db.connect(":memory:")
+    _collected(conn, "g1", "2026-11-14T00:12:30+09:00")
+    _collected(conn, "g2", "2026-11-16T21:25:00+09:00")  # 11-16은 밤에 실행 (그 전 24시간을 찾음)
+
+    start, end = news.backfill_window(conn, date(2026, 11, 15), now=NOW)
 
     assert start == datetime(2026, 11, 14, 0, 12, 30, tzinfo=KST)
-    assert end == datetime(2026, 11, 16, tzinfo=KST)
+    assert end == datetime(2026, 11, 15, 21, 25, tzinfo=KST)
 
 
-def test_backfill_window_is_at_most_three_days():
+def test_backfill_window_for_yesterday_stops_where_todays_collection_starts():
     conn = db.connect(":memory:")
-    news.save_article(conn, news.Article("g1", "오래전 기사", None, "https://x/1", None), "이차전지", "q",
-                      "2026-11-01T00:12:00+09:00")
+    _collected(conn, "g1", "2026-11-16T00:12:00+09:00")
 
-    start, end = news.backfill_window(conn, date(2026, 11, 15))
+    start, end = news.backfill_window(conn, date(2026, 11, 17), now=NOW)
 
-    assert start == datetime(2026, 11, 13, tzinfo=KST)
+    # 오늘 0시 12분 수집은 어제 0시 12분부터 찾으니, 건너뛴 11-17 몫은 그 전까지 (전날 나온 기사)
+    assert (start, end) == (datetime(2026, 11, 16, 0, 12, tzinfo=KST), datetime(2026, 11, 17, 0, 12, tzinfo=KST))
+
+
+def test_consecutive_skipped_days_are_tiled_without_overlap(monkeypatch):
+    conn = db.connect(":memory:")
+    _collected(conn, "g1", "2026-11-15T00:12:00+09:00")
+    monkeypatch.setattr(news, "fetch_query", lambda *a, **k: [])
+    now = datetime(2026, 11, 18, 0, 12, tzinfo=KST)
+
+    first = news.backfill_window(conn, date(2026, 11, 16), now=now)
+    news.collect(conn, _settings(), day=date(2026, 11, 16), now=now)
+    # 기사가 없어도 다음 날 시작점을 알 수 있게 첫날 몫을 하나 저장해 둔다
+    _collected(conn, "g2", first[1].isoformat())
+    second = news.backfill_window(conn, date(2026, 11, 17), now=now)
+
+    assert first == (datetime(2026, 11, 15, 0, 12, tzinfo=KST), datetime(2026, 11, 16, tzinfo=KST))
+    assert second == (datetime(2026, 11, 16, tzinfo=KST), datetime(2026, 11, 17, 0, 12, tzinfo=KST))
+
+
+def test_backfill_window_never_reaches_before_the_previous_midnight():
+    conn = db.connect(":memory:")
+    _collected(conn, "g1", "2026-11-01T00:12:00+09:00")  # 오래 끊겼다
+
+    start, end = news.backfill_window(conn, date(2026, 11, 15), now=NOW)
+
+    # 앞쪽 빈 날 기사는 그날들 몫으로 남겨 둔다 (나중에 오래된 날부터 채울 수 있게)
+    assert start == datetime(2026, 11, 14, tzinfo=KST)
+    assert end == datetime(2026, 11, 15, tzinfo=KST)  # 11-16도 건너뛴 날이라 그 뒤는 11-16 몫
 
 
 def test_fetch_query_with_window_uses_date_operators_and_keeps_only_that_period():
@@ -132,18 +165,20 @@ def test_fetch_query_with_window_takes_max_per_query_for_each_day():
 
 def test_collect_for_a_skipped_day_saves_articles_as_that_days_news(monkeypatch):
     conn = db.connect(":memory:")
-    news.save_article(conn, news.Article("g0", "앞 수집 기사", None, "https://x/0", None), "이차전지", "q",
-                      "2026-11-14T00:12:00+09:00")
+    _collected(conn, "g0", "2026-11-14T00:12:00+09:00")
     seen = []
 
     def fake_fetch(client, query, settings, window=None):
         seen.append(window)
-        return [news.Article("g1", "건너뛴 날 기사", "B", "https://x/1", "2026-11-15T09:00+09:00")]
+        return [news.Article("g1", "건너뛴 날 기사", "B", "https://x/1", "2026-11-14T09:00+09:00")]
 
     monkeypatch.setattr(news, "fetch_query", fake_fetch)
-    results = news.collect(conn, _settings(), day=date(2026, 11, 15))
+    now = datetime(2026, 11, 16, 0, 12, tzinfo=KST)
+    results = news.collect(conn, _settings(), day=date(2026, 11, 15), now=now)
 
     assert [r.added for r in results] == [1]
-    assert seen == [news.backfill_window(conn, date(2026, 11, 15))]
-    assert [a["title"] for a in news.news_for_day(conn, date(2026, 11, 15))] == ["건너뛴 날 기사"]
-    assert news.news_for_day(conn, date(2026, 11, 15))[0]["fetched_at"] == "2026-11-15T23:59:59+09:00"
+    assert seen == [(datetime(2026, 11, 14, 0, 12, tzinfo=KST), datetime(2026, 11, 15, 0, 12, tzinfo=KST))]
+    got = news.news_for_day(conn, date(2026, 11, 15))
+    assert [a["title"] for a in got] == ["건너뛴 날 기사"]
+    # 수집 시각 자리에 기간의 끝을 적어 다음 날 채울 때 시작점이 된다
+    assert got[0]["fetched_at"] == "2026-11-15T00:12:00+09:00"

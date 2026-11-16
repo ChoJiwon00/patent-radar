@@ -20,6 +20,7 @@
     python -m patent_radar weekly stats          일주일 통계를 뽑는다 (주간 리포트용)
     python -m patent_radar weekly save FILE      AI 분석을 저장하고 reports/weekly/날짜.md를 만든다
     python -m patent_radar site export           GitHub Pages 공개 사이트(docs/)를 만든다
+    python -m patent_radar gaps                  건너뛴 날(뉴스·특허 브리핑)과 다시·새로 만들 주간 리포트를 JSON으로 보여준다
     python -m patent_radar serve                 웹페이지를 띄운다 (http://127.0.0.1:8000)
 """
 
@@ -31,7 +32,7 @@ from pathlib import Path
 
 import httpx
 
-from . import briefing, claimmap, db, deep, news, patents, stars, website, weekly
+from . import briefing, claimmap, db, deep, gaps, news, patents, stars, website, weekly
 from .config import KST, kipris_api_key, load_interests, load_news_settings, load_patent_settings
 
 
@@ -43,7 +44,7 @@ def cmd_news(args: argparse.Namespace) -> int:
         return 2
     with db.session() as conn:
         if day is not None:
-            start, end = news.backfill_window(conn, day)
+            start, end = news.backfill_window(conn, day, load_news_settings().lookback_days)
             print(f"{day} 몫을 채워요: {start:%m-%d %H:%M} ~ {end:%m-%d %H:%M}에 나온 기사", file=sys.stderr)
         results = news.collect(conn, day=day)
         if args.json:
@@ -430,6 +431,16 @@ def cmd_site_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_gaps(args: argparse.Namespace) -> int:
+    if args.days < 1:
+        print("--days는 1 이상이어야 해요.")
+        return 2
+    with db.session() as conn:
+        found = gaps.find(conn, datetime.now(KST).date(), args.days, args.max_patent_days)
+    print(json.dumps(found, ensure_ascii=False))
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -525,6 +536,12 @@ def main() -> int:
     site_sub = p_site.add_subparsers(dest="action", required=True)
     p_sexport = site_sub.add_parser("export", help="docs/에 페이지와 데이터 JSON을 만든다")
     p_sexport.set_defaults(func=cmd_site_export)
+
+    p_gaps = sub.add_parser("gaps", help="건너뛴 날과 다시 만들 주간 리포트 찾기 (예약 작업이 채운다)")
+    p_gaps.add_argument("--days", type=int, default=gaps.LOOKBACK_DAYS, help="오늘 전 며칠까지 살펴볼지")
+    p_gaps.add_argument("--max-patent-days", type=int, default=gaps.MAX_PATENT_DAYS,
+                        help="한 번에 특허를 채울 최대 날 수 (하루 몫마다 KIPRIS 하루 예산을 쓴다)")
+    p_gaps.set_defaults(func=cmd_gaps)
 
     p_serve = sub.add_parser("serve", help="웹페이지 실행")
     p_serve.add_argument("--port", type=int, default=8000)

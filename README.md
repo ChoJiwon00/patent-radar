@@ -122,8 +122,8 @@ AI가 관련도를 낮게 판정한 특허는 순위에서 빠지고 페이지�
   날마다 하루 예산(남은 횟수 ÷ 이번 달 남은 날짜) 안에서 중요한 검색어부터 찾아요. KIPRIS가 한도 초과(오류 22)로 거부하면
   그 달에는 더 부르지 않고, 점검 등으로 연달아 3번 제대로 답하지 않으면 그 실행의 호출을 멈춰요.
   상세 정보(청구항)는 브리핑에 넣을 특허만 가져와요.
-- **건너뛴 날 채우기**: 컴퓨터가 꺼져 있던 날은 Google 뉴스의 날짜 검색(after:/before:)으로 그날 몫의 기사를 다시 모으고,
-  특허는 그날까지 공개된 것만 골라 그 날짜의 브리핑으로 채워요.
+- **건너뛴 날 채우기**: 매일 실행이 먼저 최근 7일 중 빈 날을 찾아요. 컴퓨터가 꺼져 있던 날은 Google 뉴스의 날짜 검색(after:/before:)으로
+  그날 몫의 기사를 다시 모으고, 특허는 그날까지 공개된 것만 골라 그 날짜의 브리핑으로 채워요. 그 주의 주간 리포트도 다시 만들어요.
 - **AI 출력 검사**: 브리핑·요약·주간 분석 JSON을 코드가 검사하고, 틀리면 무엇이 틀렸는지 알려 줘서 AI가 고쳐 다시 저장해요.
 - **원문 링크**: Google Patents는 막 공개된 미국 특허를 몇 주 동안 찾지 못해서, 미국 특허는 USPTO 원문 PDF로 연결해요.
 - **페이지 하나, 데이터 출처 둘**: 같은 HTML이 개인용 claude.ai 페이지에서는 페이지 데이터베이스를, GitHub Pages에서는 `docs/data/*.json`을 읽어요.
@@ -136,7 +136,8 @@ AI가 관련도를 낮게 판정한 특허는 순위에서 빠지고 페이지�
 - 중국 특허는 KIPRIS에 청구항 원문이 없어 초록으로 해설하고, 데이터가 약 3개월 늦게 들어와요.
 - 뉴스 요약은 기사 제목만 보고 써요 (기사 본문은 저작권 때문에 가져오지 않아요).
 - 매일 0시 실행은 컴퓨터가 켜져 있고 Claude 앱이 열려 있어야 해요. 놓치면 앱을 열 때 한 번 실행되고,
-  그 사이 건너뛴 날은 나중에 채워요(`news --day`, `patents search --day`).
+  그 사이 건너뛴 날은 그 실행이 최근 7일 안에서 채워요. 특허는 KIPRIS 무료 한도 때문에 한 번에 3일까지 채우고,
+  채운 만큼 그달 남은 하루 예산이 줄어요.
 
 ## 폴더 구조
 
@@ -160,6 +161,7 @@ patent-radar/
 │  ├─ claimmap.py            심층 리포트의 숫자 표 → 청구항 숫자 지도 데이터·그림
 │  ├─ stars.py               ★ 관심 특허 동기화·진행 상태 확인
 │  ├─ weekly.py              주간 통계·AI 분석·보고서
+│  ├─ gaps.py                건너뛴 날·다시 만들 주간 리포트 찾기
 │  ├─ website.py             GitHub Pages 사이트 만들기
 │  ├─ db.py · config.py      SQLite 저장소 · 설정
 │  └─ web.py · static/       로컬 웹페이지 (뉴스 보기)
@@ -188,7 +190,8 @@ copy .env.example .env
 .venv\Scripts\python -m patent_radar news
 .venv\Scripts\python -m patent_radar patents search
 .venv\Scripts\python -m patent_radar patents usage
-# 건너뛴 날 채우기 (오래된 날부터): 그날 몫의 기사를 모으고, 그날 브리핑 키워드로 그날까지 공개된 특허를 찾아요
+# 건너뛴 날 찾기 (최근 7일) / 채우기 (오래된 날부터): 앞뒤 수집과 겹치지 않게 그날 몫의 기사를 모으고, 그날까지 공개된 특허를 찾아요
+.venv\Scripts\python -m patent_radar gaps
 .venv\Scripts\python -m patent_radar news --json --day 2026-11-15
 .venv\Scripts\python -m patent_radar patents search --day 2026-11-15
 
