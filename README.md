@@ -122,6 +122,8 @@ AI가 관련도를 낮게 판정한 특허는 순위에서 빠지고 페이지�
   날마다 하루 예산(남은 횟수 ÷ 이번 달 남은 날짜) 안에서 중요한 검색어부터 찾아요. KIPRIS가 한도 초과(오류 22)로 거부하면
   그 달에는 더 부르지 않고, 점검 등으로 연달아 3번 제대로 답하지 않으면 그 실행의 호출을 멈춰요.
   상세 정보(청구항)는 브리핑에 넣을 특허만 가져와요.
+- **건너뛴 날 채우기**: 컴퓨터가 꺼져 있던 날은 Google 뉴스의 날짜 검색(after:/before:)으로 그날 몫의 기사를 다시 모으고,
+  특허는 그날까지 공개된 것만 골라 그 날짜의 브리핑으로 채워요.
 - **AI 출력 검사**: 브리핑·요약·주간 분석 JSON을 코드가 검사하고, 틀리면 무엇이 틀렸는지 알려 줘서 AI가 고쳐 다시 저장해요.
 - **원문 링크**: Google Patents는 막 공개된 미국 특허를 몇 주 동안 찾지 못해서, 미국 특허는 USPTO 원문 PDF로 연결해요.
 - **페이지 하나, 데이터 출처 둘**: 같은 HTML이 개인용 claude.ai 페이지에서는 페이지 데이터베이스를, GitHub Pages에서는 `docs/data/*.json`을 읽어요.
@@ -133,7 +135,8 @@ AI가 관련도를 낮게 판정한 특허는 순위에서 빠지고 페이지�
 - 특허 해설과 뉴스 요약은 AI가 쓴 것이라 틀린 곳이 있을 수 있고, 법률 자문이 아니에요. 중요한 내용은 원문 링크에서 확인해 주세요.
 - 중국 특허는 KIPRIS에 청구항 원문이 없어 초록으로 해설하고, 데이터가 약 3개월 늦게 들어와요.
 - 뉴스 요약은 기사 제목만 보고 써요 (기사 본문은 저작권 때문에 가져오지 않아요).
-- 매일 0시 실행은 컴퓨터가 켜져 있고 Claude 앱이 열려 있어야 해요. 놓치면 앱을 열 때 실행돼요.
+- 매일 0시 실행은 컴퓨터가 켜져 있고 Claude 앱이 열려 있어야 해요. 놓치면 앱을 열 때 한 번 실행되고,
+  그 사이 건너뛴 날은 나중에 채워요(`news --day`, `patents search --day`).
 
 ## 폴더 구조
 
@@ -185,6 +188,9 @@ copy .env.example .env
 .venv\Scripts\python -m patent_radar news
 .venv\Scripts\python -m patent_radar patents search
 .venv\Scripts\python -m patent_radar patents usage
+# 건너뛴 날 채우기 (오래된 날부터): 그날 몫의 기사를 모으고, 그날 브리핑 키워드로 그날까지 공개된 특허를 찾아요
+.venv\Scripts\python -m patent_radar news --json --day 2026-11-15
+.venv\Scripts\python -m patent_radar patents search --day 2026-11-15
 
 # 공개 사이트 만들기 (docs/)
 .venv\Scripts\python -m patent_radar site export

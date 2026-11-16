@@ -774,6 +774,7 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
             terms = [kw.ko, *kw.alt] if country == "KR" else [kw.ko]
             found: list[Found] = []
             searched = failed = False
+            too_new = 0  # 지난 날짜를 채울 때 그날 뒤에 공개돼서 뺀 특허 수
             for n, term in enumerate(terms):
                 if n and retries_left <= 0:
                     break
@@ -794,8 +795,11 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
                     break
                 tried.add(kw.ko)
                 searched = True
+                # 지난 날짜를 채울 때는 그날 뒤에 공개된 특허를 넣지 않는다 (그날 볼 수 있던 특허만).
+                too_new = sum(1 for f in raw if (f.published_at or f.filed_at or "")[:10] > day_s)
                 found = [f for f in raw
-                         if (f.published_at or f.filed_at or "") >= cutoff and matches_ipc(f.ipc, prefixes)]
+                         if cutoff <= (f.published_at or f.filed_at or "")[:10] <= day_s
+                         and matches_ipc(f.ipc, prefixes)]
                 if found:
                     if n:
                         warnings.append(f"{COUNTRY_NAMES[country]} '{kw.ko}': 결과가 없어 '{term}'(으)로 다시 찾음")
@@ -805,8 +809,9 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
             if not found:
                 # 검색이 실패했거나 예산 때문에 건너뛰었으면 '결과 없음'이 아니다.
                 if searched and not failed:
+                    later = f" ({day_s} 뒤에 공개된 {too_new}건은 뺌)" if too_new else ""
                     warnings.append(f"{COUNTRY_NAMES[country]} '{kw.ko}': 최근 {settings.recent_years}년 안의 "
-                                    "주제에 맞는 검색 결과 없음")
+                                    f"주제에 맞는 검색 결과 없음{later}")
                 continue
             picked = 0
             for f in found:

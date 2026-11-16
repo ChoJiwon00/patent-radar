@@ -120,3 +120,16 @@ allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data
 - 특허 검색 키워드 (한국어 · 영어)
 - 실패한 검색어가 있었다면 그 목록
 - claude.ai 사이드바의 "Patent Radar 브리핑" 페이지와 로컬 웹페이지(http://127.0.0.1:8000)에서도 볼 수 있다는 안내
+
+## 건너뛴 날 채우기 (사용자가 요청할 때만)
+
+컴퓨터가 꺼져 있어 지나간 날의 브리핑이 없으면, 사용자가 요청할 때 **오래된 날부터 하루씩** 채운다.
+예약 작업은 앱을 열 때 오늘 몫만 한 번 실행하므로, 그 사이 날짜는 이렇게만 채워진다.
+
+1. `.venv\Scripts\python.exe -m patent_radar news --json --day YYYY-MM-DD`
+   - 그 전 마지막 수집 뒤부터 그날이 끝날 때까지 나온 기사를 찾아 그날 새 기사로 저장하고, 위 1단계와 같은 JSON을 낸다.
+   - 앞날을 먼저 채우면 그 기간이 뒷날 몫까지 덮으니 순서를 지킨다.
+2. 2~3단계대로 쓰고 저장한다 (`day`는 채우는 날짜). 4단계는 `briefing export data/briefing-page.json --day YYYY-MM-DD`.
+3. 특허 브리핑도 같은 순서에 `--day YYYY-MM-DD`를 붙여 한다
+   (`patents search`·`save-summaries`·`rescore`·`export`·`report`). 특허는 그날까지 공개된 것만 들어간다.
+4. KIPRIS 호출은 실제로 부른 달의 한도에서 빠진다. 채운 만큼 이번 달 남은 하루 예산이 줄어든다고 보고에 적는다.

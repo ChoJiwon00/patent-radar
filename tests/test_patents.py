@@ -289,3 +289,24 @@ def test_collect_searches_only_the_keywords_countries(conn):
                     date(2026, 10, 21), SETTINGS)
 
     assert client.searched == [("KR", "가"), ("US", "가"), ("CN", "가"), ("KR", "나")]
+
+
+def test_filling_a_past_day_skips_patents_published_after_that_day(conn):
+    client = FakeClient({("KR", A.ko): [found("KR", "later", published="2026-11-10"),
+                                        found("KR", "before", published="2026-11-02")]})
+
+    content = patents.collect(conn, client, [A], date(2026, 11, 3), SETTINGS)
+
+    keys = [conn.execute("SELECT doc_key FROM patents WHERE id = ?", (i["patent_id"],)).fetchone()[0]
+            for i in content["items"]]
+    assert keys == ["before"]
+    assert conn.execute("SELECT COUNT(*) FROM patents WHERE doc_key = 'later'").fetchone()[0] == 0
+
+
+def test_past_day_warning_says_when_results_were_only_later_patents(conn):
+    client = FakeClient({("KR", A.ko): [found("KR", "later", published="2026-11-10")]})
+
+    content = patents.collect(conn, client, [A], date(2026, 11, 3), SETTINGS)
+
+    assert content["items"] == []
+    assert any("2026-11-03 뒤에 공개된 1건은 뺌" in w for w in content["warnings"])

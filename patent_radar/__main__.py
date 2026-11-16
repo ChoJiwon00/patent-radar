@@ -2,6 +2,7 @@
 
     python -m patent_radar news                  뉴스를 수집하고 결과를 요약해서 보여준다
     python -m patent_radar news --json           수집 후 오늘의 새 기사를 JSON으로 출력한다 (스킬이 읽는 형식)
+    python -m patent_radar news --json --day 2026-11-15   건너뛴 지난 날짜의 기사를 채운다 (오래된 날부터)
     python -m patent_radar briefing save FILE    AI 브리핑 JSON을 검사해서 저장한다
     python -m patent_radar briefing show         저장된 브리핑을 보여준다
     python -m patent_radar briefing export FILE  claude.ai 브리핑 페이지에 올릴 JSON을 만든다
@@ -35,10 +36,18 @@ from .config import KST, kipris_api_key, load_interests, load_news_settings, loa
 
 
 def cmd_news(args: argparse.Namespace) -> int:
+    today = datetime.now(KST).date()
+    day = date.fromisoformat(args.day) if args.day else None
+    if day is not None and day >= today:
+        print("--day는 건너뛴 지난 날짜만 받아요. 오늘 기사는 --day 없이 수집하세요.")
+        return 2
     with db.session() as conn:
-        results = news.collect(conn)
+        if day is not None:
+            start, end = news.backfill_window(conn, day)
+            print(f"{day} 몫을 채워요: {start:%m-%d %H:%M} ~ {end:%m-%d %H:%M}에 나온 기사", file=sys.stderr)
+        results = news.collect(conn, day=day)
         if args.json:
-            today = datetime.now(KST).date()
+            today = day or today
             # 스킬이 읽기 좋게 긴 링크는 빼고 필요한 항목만 내보낸다.
             keep = ("id", "topic", "query", "title", "source", "published_at")
             articles = [{k: a[k] for k in keep} for a in news.news_for_day(conn, today)]
@@ -438,6 +447,7 @@ def main() -> int:
 
     p_news = sub.add_parser("news", help="뉴스 수집")
     p_news.add_argument("--json", action="store_true", help="오늘의 새 기사를 JSON으로 출력")
+    p_news.add_argument("--day", help="건너뛴 지난 날짜 YYYY-MM-DD를 채운다 (그 전 수집 뒤부터 그날 끝까지 나온 기사)")
     p_news.set_defaults(func=cmd_news)
 
     p_brief = sub.add_parser("briefing", help="AI 브리핑 저장·조회")
