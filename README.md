@@ -16,7 +16,7 @@
 
 - **매일**: 0시에 이차전지·ESS(에너지저장장치)·반도체 뉴스에서 기술 키워드를 뽑아 한국·미국·중국 특허를 찾고, Claude가 청구항을 한국어로 풀어 써요.
 - **깊게**: 기술 주제 하나를 골라 한·미·중 특허를 모으고, 여러 AI 에이전트가 읽은 뒤 다른 에이전트가 인용문과 숫자를 원문과 대조해 [심층 리포트](#심층-리포트에서-찾은-것)로 써요.
-- **한눈에**: 두 리포트의 청구항·초록에 나온 숫자 140개를 특허마다 범위 막대로 그린 지도, 특허 용어 한 장 가이드, 매일 브리핑과 주간 리포트를 공개 사이트에 모아요.
+- **한눈에**: 두 리포트의 청구항·초록에 나온 숫자 140개를 특허마다 범위 막대로 그린 지도, 특허 용어 한 장 가이드, 매일 브리핑과 주간·월간 리포트를 공개 사이트에 모아요.
 
 [![Patent Radar 화면](docs/screenshot.png)](https://chojiwon00.github.io/patent-radar/)
 
@@ -51,6 +51,8 @@
 - **청구항 숫자 지도**: 심층 리포트의 숫자 표를 7가지 주제로 나눠 특허마다 범위 막대로 그려요(`patents claimmap`). 단위를 하나로 맞추고, 같은 숫자는 한 번만 그려요.
 - **뉴스 브리핑**: 세 주제의 기사 제목에서 같은 사건을 묶고, 주제마다 중요한 이야기 3~5개를 요약해요.
 - **주간 트렌드 리포트**: 매주 월요일, 일주일치 통계(자주 나온 기술·출원인·기술 분류)와 AI의 흐름 분석을 만들어요. [사이트에서 보기](https://chojiwon00.github.io/patent-radar/#weekly)
+- **월간 트렌드 리포트**: 매월 1일, 지난 한 달의 주차별 기사 수, 가장 오래 주목받은 특허, 지난달과의 비교, KIPRIS 호출 수와
+  AI의 흐름 분석을 만들어요. 첫 리포트는 2026년 12월 1일(11월분)에 나와요.
 - **관심 회사·관심 특허**: 양극재·전지 회사를 관심 회사로 두고, 페이지에서 ★ 별표한 특허는 등록 여부를 매주 확인해요.
 
 ## 특허가 처음이라면
@@ -84,6 +86,7 @@ flowchart LR
   F --> G[("SQLite")]
   G --> I["GitHub reports/ · Pages 데모"]
   G --> J["월요일<br>/weekly-report"]
+  G --> K["매월 1일<br>/monthly-report"]
 ```
 
 요약, 관련도 판정, 흐름 분석은 Claude가 **스킬**([`.claude/skills/`](.claude/skills/))에 적힌 기준대로 쓰고,
@@ -123,9 +126,9 @@ AI가 관련도를 낮게 판정한 특허는 순위에서 빠지고 페이지�
   그 달에는 더 부르지 않고, 점검 등으로 연달아 3번 제대로 답하지 않으면 그 실행의 호출을 멈춰요.
   상세 정보(청구항)는 브리핑에 넣을 특허만 가져와요.
 - **건너뛴 날 채우기**: 매일 실행이 먼저 최근 7일 중 빈 날을 찾아요. 컴퓨터가 꺼져 있던 날은 Google 뉴스의 날짜 검색(after:/before:)으로
-  그날 몫의 기사를 다시 모으고, 특허는 그날까지 공개된 것만 골라 그 날짜의 브리핑으로 채워요. 그 주의 주간 리포트도 다시 만들어요.
+  그날 몫의 기사를 다시 모으고, 특허는 그날까지 공개된 것만 골라 그 날짜의 브리핑으로 채워요. 그 주의 주간·월간 리포트도 다시 만들어요.
   앱을 늦게 열어 실행이 늦어진 날은 마지막 수집 때부터 이어서 찾아, 그 사이 기사가 빠지지 않아요.
-- **AI 출력 검사**: 브리핑·요약·주간 분석 JSON을 코드가 검사하고, 틀리면 무엇이 틀렸는지 알려 줘서 AI가 고쳐 다시 저장해요.
+- **AI 출력 검사**: 브리핑·요약·주간·월간 분석 JSON을 코드가 검사하고, 틀리면 무엇이 틀렸는지 알려 줘서 AI가 고쳐 다시 저장해요.
 - **원문 링크**: Google Patents는 막 공개된 미국 특허를 몇 주 동안 찾지 못해서, 미국 특허는 USPTO 원문 PDF로 연결해요.
 - **페이지 하나, 데이터 출처 둘**: 같은 HTML이 개인용 claude.ai 페이지에서는 페이지 데이터베이스를, GitHub Pages에서는 `docs/data/*.json`을 읽어요.
 - **테스트와 CI**: 실제 KIPRIS 대신 가짜 클라이언트로 검색·점수·검사 로직을 테스트하고, GitHub에 올릴 때마다 자동으로 돌아요.
@@ -147,12 +150,12 @@ AI가 관련도를 낮게 판정한 특허는 순위에서 빠지고 페이지�
 
 ```
 patent-radar/
-├─ .claude/skills/           AI가 하는 일 (daily-briefing · patent-briefing · weekly-report)
+├─ .claude/skills/           AI가 하는 일 (daily-briefing · patent-briefing · weekly-report · monthly-report)
 ├─ artifact/briefing.html    브리핑 페이지 (claude.ai와 GitHub Pages가 함께 씀)
 ├─ config/topics.toml        뉴스 주제·검색어·IPC 분류·관심 회사·관심 키워드·특허 검색 설정
 ├─ config/deep/              주제 심층 리포트의 검색어 설정
 ├─ docs/                     GitHub Pages 공개 사이트 (index.html + data/, 특허 한 장 가이드 guide.html, 청구항 숫자 지도 claims.html)
-├─ reports/                  날짜별 특허 브리핑, 주간 리포트(weekly/), 주제 심층 리포트(deep/)
+├─ reports/                  날짜별 특허 브리핑, 주간 리포트(weekly/), 월간 리포트(monthly/), 주제 심층 리포트(deep/)
 ├─ patent_radar/
 │  ├─ __main__.py            명령줄 진입점
 │  ├─ news.py                뉴스 수집·중복 제거
@@ -162,7 +165,8 @@ patent-radar/
 │  ├─ claimmap.py            심층 리포트의 숫자 표 → 청구항 숫자 지도 데이터·그림
 │  ├─ stars.py               ★ 관심 특허 동기화·진행 상태 확인
 │  ├─ weekly.py              주간 통계·AI 분석·보고서
-│  ├─ gaps.py                건너뛴 날·다시 만들 주간 리포트 찾기
+│  ├─ monthly.py             월간 통계(주차별·오래 주목받은 특허·지난달 비교)·보고서
+│  ├─ gaps.py                건너뛴 날·다시 만들 주간·월간 리포트 찾기
 │  ├─ website.py             GitHub Pages 사이트 만들기
 │  ├─ db.py · config.py      SQLite 저장소 · 설정
 │  └─ web.py · static/       로컬 웹페이지 (뉴스 보기)
@@ -205,7 +209,7 @@ copy .env.example .env
 .venv\Scripts\python -m pytest
 ```
 
-Claude Code에서는 `/daily-briefing`, `/patent-briefing`(또는 `/patent-briefing 전고체 전해질`), `/weekly-report`로 실행해요.
+Claude Code에서는 `/daily-briefing`, `/patent-briefing`(또는 `/patent-briefing 전고체 전해질`), `/weekly-report`, `/monthly-report`로 실행해요.
 
 </details>
 

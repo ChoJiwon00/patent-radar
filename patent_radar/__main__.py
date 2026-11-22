@@ -19,8 +19,10 @@
     python -m patent_radar stars check           한국 관심 특허의 진행 상태를 다시 확인한다
     python -m patent_radar weekly stats          일주일 통계를 뽑는다 (주간 리포트용)
     python -m patent_radar weekly save FILE      AI 분석을 저장하고 reports/weekly/날짜.md를 만든다
+    python -m patent_radar monthly stats         지난달 통계를 뽑는다 (월간 리포트용, 매월 1일)
+    python -m patent_radar monthly save FILE     AI 분석을 저장하고 reports/monthly/YYYY-MM.md를 만든다
     python -m patent_radar site export           GitHub Pages 공개 사이트(docs/)를 만든다
-    python -m patent_radar gaps                  건너뛴 날(뉴스·특허 브리핑)과 다시·새로 만들 주간 리포트를 JSON으로 보여준다
+    python -m patent_radar gaps                  건너뛴 날(뉴스·특허 브리핑)과 다시·새로 만들 주간·월간 리포트를 JSON으로 보여준다
     python -m patent_radar serve                 웹페이지를 띄운다 (http://127.0.0.1:8000)
 """
 
@@ -32,7 +34,7 @@ from pathlib import Path
 
 import httpx
 
-from . import briefing, claimmap, db, deep, gaps, news, patents, stars, website, weekly
+from . import briefing, claimmap, db, deep, gaps, monthly, news, patents, stars, website, weekly
 from .config import KST, kipris_api_key, load_interests, load_news_settings, load_patent_settings
 
 
@@ -286,7 +288,9 @@ def cmd_patents_report(args: argparse.Namespace) -> int:
 def _write_reports_index() -> None:
     days = sorted((p.stem for p in REPORTS_DIR.glob("????-??-??.md")), reverse=True)
     weeks = sorted((p.stem for p in (REPORTS_DIR / "weekly").glob("????-??-??.md")), reverse=True)
-    index = ["# 특허 브리핑 모음", "", "Patent Radar가 매일 찾은 한·미·중 특허와 주간 트렌드 리포트를 모아 둔 곳이에요.", ""]
+    months = sorted((p.stem for p in (REPORTS_DIR / "monthly").glob("????-??.md")), reverse=True)
+    reports = "주간·월간 트렌드 리포트" if months else "주간 트렌드 리포트"
+    index = ["# 특허 브리핑 모음", "", f"Patent Radar가 매일 찾은 한·미·중 특허와 {reports}를 모아 둔 곳이에요.", ""]
     deep_reports = sorted((p for p in (REPORTS_DIR / "deep").glob("*.md") if not p.stem.endswith("-list")), reverse=True)
 
     def deep_title(p: Path) -> str:
@@ -296,6 +300,8 @@ def _write_reports_index() -> None:
 
     if deep_reports:
         index += ["## 주제 심층 리포트", ""] + [f"- [{deep_title(p)}](deep/{p.name})" for p in deep_reports] + [""]
+    if months:
+        index += ["## 월간 트렌드 리포트", ""] + [f"- [{monthly.month_label(m)}](monthly/{m}.md)" for m in months] + [""]
     if weeks:
         index += ["## 주간 트렌드 리포트", ""] + [f"- [{w} 까지의 일주일](weekly/{w}.md)" for w in weeks] + [""]
     index += ["## 매일 특허 브리핑", ""] + [f"- [{d}]({d}.md)" for d in days]
@@ -335,6 +341,64 @@ def cmd_weekly_save(args: argparse.Namespace) -> int:
     if args.page:
         Path(args.page).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"주간 리포트를 저장했어요: reports/weekly/{end}.md" + (f", 페이지용 {args.page}" if args.page else ""))
+    return 0
+
+
+def _month(value: str | None) -> str:
+    return monthly.check_month(value) if value else monthly.default_month(datetime.now(KST).date())
+
+
+def cmd_monthly_stats(args: argparse.Namespace) -> int:
+    try:
+        month = _month(args.month)
+    except ValueError as e:
+        print(e)
+        return 2
+    with db.session() as conn:
+        stats = monthly.build_stats(conn, month, [t.name for t in load_news_settings().topics])
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.out).write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
+    p = stats["patents"]
+    print(f"{monthly.month_label(month)}: 브리핑 {len(stats['briefings'])}일, 기사 {stats['news']['total']}건, "
+          f"특허 {p['total']}건(🔥 {len(p['spotlight'])}건), 주간 리포트 {len(stats['weekly_reports'])}개 → {args.out}")
+    if not stats["briefings"]:
+        print("⚠ 그달 브리핑이 하나도 없어요. 달을 잘못 고르지 않았는지 확인하세요.")
+        return 1
+    if month >= datetime.now(KST).strftime("%Y-%m"):
+        print("⚠ 아직 끝나지 않은 달이에요. 월간 리포트는 그달이 끝난 뒤(다음 달 1일)에 만들어요.")
+    return 0
+
+
+def cmd_monthly_save(args: argparse.Namespace) -> int:
+    try:
+        month = _month(args.month)
+        commentary = json.loads(Path(args.file).read_text(encoding="utf-8"))
+    except ValueError as e:
+        print(e)
+        return 2
+    except OSError as e:
+        print(f"파일을 읽지 못했어요: {e}")
+        return 2
+    if month >= datetime.now(KST).strftime("%Y-%m") and not args.force:
+        print(f"{monthly.month_label(month)}은 아직 끝나지 않은 달이라 저장하지 않아요. 꼭 저장하려면 --force를 붙이세요.")
+        return 2
+    with db.session() as conn:
+        stats = monthly.build_stats(conn, month, [t.name for t in load_news_settings().topics])
+        if not stats["briefings"]:
+            print(f"{monthly.month_label(month)} 브리핑이 하나도 없어 저장하지 않아요. 달을 확인하세요.")
+            return 1
+        try:
+            monthly.save(conn, stats, commentary)
+        except monthly.WeeklyError as e:
+            print(f"형식 오류: {e}")
+            return 2
+        report = monthly.get(conn, month)
+    (REPORTS_DIR / "monthly").mkdir(parents=True, exist_ok=True)
+    (REPORTS_DIR / "monthly" / f"{month}.md").write_text(monthly.report_markdown(report), encoding="utf-8")
+    _write_reports_index()
+    if args.page:
+        Path(args.page).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"월간 리포트를 저장했어요: reports/monthly/{month}.md" + (f", 페이지용 {args.page}" if args.page else ""))
     return 0
 
 
@@ -532,12 +596,25 @@ def main() -> int:
     p_wsave.add_argument("--page", help="claude.ai 페이지에 올릴 JSON도 이 파일로 저장")
     p_wsave.set_defaults(func=cmd_weekly_save)
 
+    p_month = sub.add_parser("monthly", help="월간 트렌드 리포트")
+    month_sub = p_month.add_subparsers(dest="action", required=True)
+    p_mstats = month_sub.add_parser("stats", help="한 달 통계를 뽑아 AI가 읽을 파일로 저장")
+    p_mstats.add_argument("--month", help="YYYY-MM (기본: 지난달)")
+    p_mstats.add_argument("--out", default="data/monthly-stats.json")
+    p_mstats.set_defaults(func=cmd_monthly_stats)
+    p_msave = month_sub.add_parser("save", help="AI 분석을 저장하고 보고서(reports/monthly/YYYY-MM.md)를 만든다")
+    p_msave.add_argument("file")
+    p_msave.add_argument("--month", help="YYYY-MM (기본: 지난달)")
+    p_msave.add_argument("--page", help="claude.ai 페이지에 올릴 JSON도 이 파일로 저장")
+    p_msave.add_argument("--force", action="store_true", help="아직 끝나지 않은 달도 저장한다")
+    p_msave.set_defaults(func=cmd_monthly_save)
+
     p_site = sub.add_parser("site", help="GitHub Pages 공개 사이트")
     site_sub = p_site.add_subparsers(dest="action", required=True)
     p_sexport = site_sub.add_parser("export", help="docs/에 페이지와 데이터 JSON을 만든다")
     p_sexport.set_defaults(func=cmd_site_export)
 
-    p_gaps = sub.add_parser("gaps", help="건너뛴 날과 다시 만들 주간 리포트 찾기 (예약 작업이 채운다)")
+    p_gaps = sub.add_parser("gaps", help="건너뛴 날과 다시·새로 만들 주간·월간 리포트 찾기 (예약 작업이 채운다)")
     p_gaps.add_argument("--days", type=int, default=gaps.LOOKBACK_DAYS, help="오늘 전 며칠까지 살펴볼지")
     p_gaps.add_argument("--max-patent-days", type=int, default=gaps.MAX_PATENT_DAYS,
                         help="한 번에 특허를 채울 최대 날 수 (하루 몫마다 KIPRIS 하루 예산을 쓴다)")

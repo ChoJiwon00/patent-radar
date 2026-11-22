@@ -8,8 +8,11 @@ import json
 import sqlite3
 from datetime import date, timedelta
 
+from . import monthly
+
 LOOKBACK_DAYS = 7  # 오늘 전 며칠까지 살펴볼지
 MAX_PATENT_DAYS = 3  # 한 번에 특허를 채울 최대 날 수 (하루 몫마다 KIPRIS 하루 예산을 쓴다)
+FIRST_MONTH = "2026-11"  # 월간 리포트를 처음 만드는 달. 그 전 달은 빠진 것으로 보지 않는다.
 
 
 def _patents_missing(content: dict | None) -> bool:
@@ -44,6 +47,30 @@ def stale_weeks(conn: sqlite3.Connection, since: str = "") -> list[str]:
     return out
 
 
+def months_to_make(conn: sqlite3.Connection, today: date) -> tuple[list[str], list[str]]:
+    """(새로 만들 월간 리포트, 다시 만들 월간 리포트). 지난달만 본다.
+
+    1일에는 그날 실행이 지난달 리포트를 만드니 '빠진 것'으로 보지 않는다. 1일에 컴퓨터가 꺼져 있었으면 다음 실행이 만든다.
+    월간 리포트를 만든 뒤에 그달 브리핑이나 그달 몫 주간 리포트가 새로 저장됐으면(건너뛴 날 채우기) 다시 만든다.
+    """
+    prev = monthly.previous_month(today.strftime("%Y-%m"))
+    if prev < FIRST_MONTH:
+        return [], []
+    days = monthly.month_days(prev)
+    row = conn.execute("SELECT created_at FROM monthly_reports WHERE month = ?", (prev,)).fetchone()
+    latest = conn.execute(
+        """SELECT MAX(created_at) FROM (
+               SELECT created_at FROM briefings WHERE day BETWEEN ? AND ?
+               UNION ALL SELECT created_at FROM patent_briefings WHERE day BETWEEN ? AND ?)""",
+        (days[0], days[-1], days[0], days[-1])).fetchone()[0]
+    weekly_latest = conn.execute("SELECT MAX(created_at) FROM weekly_reports WHERE end_day BETWEEN ? AND ?",
+                                 monthly.weekly_range(prev)).fetchone()[0]
+    if row is None:
+        return ([prev] if latest and today.day > 1 else []), []
+    changed = max(latest or "", weekly_latest or "")
+    return [], ([prev] if changed and changed > row[0] else [])
+
+
 def find(conn: sqlite3.Connection, today: date, lookback: int = LOOKBACK_DAYS,
          max_patent_days: int = MAX_PATENT_DAYS) -> dict:
     """오늘 전 lookback일 가운데 채울 날.
@@ -54,6 +81,7 @@ def find(conn: sqlite3.Connection, today: date, lookback: int = LOOKBACK_DAYS,
     patents_later: 한 번에 채울 수를 넘어 이번에 미룬 날 (다음 실행에서 다시 나온다)
     weeks: 다시 만들 주간 리포트 (만든 뒤에 그 주의 브리핑이 새로 저장됐다)
     weeks_missing: 만들지 못한 주간 리포트 (월요일 실행을 통째로 건너뛰었다). 그 주 브리핑을 채운 뒤 새로 만든다
+    months_missing / months: 새로 만들 / 다시 만들 월간 리포트 (지난달, YYYY-MM)
     """
     lookback = max(1, lookback)
     first_news = conn.execute("SELECT MIN(day) FROM briefings").fetchone()[0]
@@ -74,5 +102,7 @@ def find(conn: sqlite3.Connection, today: date, lookback: int = LOOKBACK_DAYS,
                      and first_week and d > first_week and d not in week_days]
     # 다시 만들지 못한 주간이 다음 실행에서도 나오도록 한 주 더 거슬러 본다.
     since = (date.fromisoformat(days[0]) - timedelta(days=7)).isoformat()
+    months_missing, months = months_to_make(conn, today)
     return {"today": today.isoformat(), "news": news, "patents": patents, "patents_later": later,
-            "weeks": stale_weeks(conn, since), "weeks_missing": missing_weeks}
+            "weeks": stale_weeks(conn, since), "weeks_missing": missing_weeks,
+            "months": months, "months_missing": months_missing}

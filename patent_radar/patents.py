@@ -883,10 +883,13 @@ def collect(conn: sqlite3.Connection, client, keywords: list[Keyword], day: date
     if stop:
         stops[stop[0]] = stop[1]
     content = {"keywords": all_keywords, "items": items, "warnings": warnings, **stops}
-    conn.execute(
-        "INSERT OR REPLACE INTO patent_briefings (day, content, created_at) VALUES (?, ?, ?)",
-        (day_s, json.dumps(content, ensure_ascii=False), datetime.now(KST).isoformat(timespec="seconds")),
-    )
+    # 다시 찾아도 내용이 같으면(점검 중인 날을 다시 시도 등) 저장 시각을 바꾸지 않는다.
+    # 저장 시각이 바뀌면 그 주·그달 리포트를 다시 만들 것으로 보기 때문이다.
+    if row is None or json.loads(row["content"]) != content:
+        conn.execute(
+            "INSERT OR REPLACE INTO patent_briefings (day, content, created_at) VALUES (?, ?, ?)",
+            (day_s, json.dumps(content, ensure_ascii=False), datetime.now(KST).isoformat(timespec="seconds")),
+        )
     conn.commit()
     return content
 

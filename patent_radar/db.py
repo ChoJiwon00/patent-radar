@@ -87,6 +87,14 @@ CREATE TABLE IF NOT EXISTS weekly_reports (
     created_at TEXT NOT NULL
 );
 
+-- 월간 리포트. 매월 1일에 지난달을 정리한다.
+CREATE TABLE IF NOT EXISTS monthly_reports (
+    month      TEXT PRIMARY KEY,           -- YYYY-MM
+    stats      TEXT NOT NULL,              -- 숫자로 뽑은 통계 JSON
+    commentary TEXT NOT NULL,              -- AI가 쓴 분석 JSON
+    created_at TEXT NOT NULL
+);
+
 -- 하루 한 건. 그날 특허 브리핑에 넣은 특허 목록
 CREATE TABLE IF NOT EXISTS patent_briefings (
     day        TEXT PRIMARY KEY,

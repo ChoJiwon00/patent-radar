@@ -10,13 +10,14 @@ import re
 import sqlite3
 from datetime import date, datetime
 
-from . import briefing, patents, weekly
+from . import briefing, monthly, patents, weekly
 from .config import KST, ROOT
 
 DOCS = ROOT / "docs"
 PAGE = ROOT / "artifact" / "briefing.html"
 MAX_DAYS = 60
 MAX_WEEKS = 26
+MAX_MONTHS = 24
 
 SITE = "https://chojiwon00.github.io/patent-radar/"
 TITLE = "LFP · 이차전지 특허 레이더 | Patent Radar"
@@ -67,7 +68,11 @@ def export(conn: sqlite3.Connection) -> dict:
     weeks = [r[0] for r in conn.execute("SELECT end_day FROM weekly_reports ORDER BY end_day DESC LIMIT ?", (MAX_WEEKS,))]
     for w in weeks:
         _write(DOCS / "data" / "weeks" / f"{w}.json", weekly.get(conn, date.fromisoformat(w)))
-    index = {"generated_at": datetime.now(KST).isoformat(timespec="seconds"), "days": days, "weeks": weeks}
+    months = [r[0] for r in conn.execute("SELECT month FROM monthly_reports ORDER BY month DESC LIMIT ?", (MAX_MONTHS,))]
+    for m in months:
+        _write(DOCS / "data" / "months" / f"{m}.json", monthly.get(conn, m))
+    index = {"generated_at": datetime.now(KST).isoformat(timespec="seconds"), "days": days, "weeks": weeks,
+             "months": months}
     _write(DOCS / "data" / "index.json", index)
 
     (DOCS / "index.html").write_text(page_html(), encoding="utf-8")

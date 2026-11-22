@@ -39,7 +39,18 @@ def _first_applicant(applicant: str | None) -> str | None:
 
 
 def build_stats(conn: sqlite3.Connection, end: date, topic_order: list[str] | None = None) -> dict:
-    days = week_days(end)
+    """end를 마지막 날로 하는 7일 통계."""
+    return stats_for_days(conn, week_days(end), topic_order)
+
+
+def stats_for_days(conn: sqlite3.Connection, days: list[str], topic_order: list[str] | None = None,
+                   keyword_limit: int = 15, spotlight_limit: int | None = 10, new_only: bool = False) -> dict:
+    """주어진 날짜들(오래된 날부터)의 뉴스·특허 브리핑 통계. 주간·월간 리포트가 함께 쓴다.
+
+    spotlight_limit: 주목 특허를 몇 건까지 담을지 (None이면 모두). 주목 특허마다 그 기간에 순위에 오른 날 수(days_hot)를 센다.
+    new_only: 특허 수·나라·출원인·분류를 그 기간에 처음 보여 준 특허로만 센다 (월간: 앞 달에서 이어진 주목 특허를 두 번 세지 않게).
+      주목 특허 목록은 그대로 둔다.
+    """
     marks = ",".join("?" * len(days))
 
     # 뉴스: 주제별·날짜별 기사 수
@@ -67,13 +78,16 @@ def build_stats(conn: sqlite3.Connection, end: date, topic_order: list[str] | No
             for k in t["keywords"]:
                 keyword_days[k["ko"]] += 1
                 keyword_topic.setdefault(k["ko"], t["name"])
-    keywords = [{"ko": k, "topic": keyword_topic[k], "days": n} for k, n in keyword_days.most_common(15)]
+    keywords = [{"ko": k, "topic": keyword_topic[k], "days": n} for k, n in keyword_days.most_common(keyword_limit)]
 
     # 특허 브리핑: 이번 주에 보여준 특허
     shown: dict[int, dict] = {}
     for r in conn.execute(f"SELECT content FROM patent_briefings WHERE day IN ({marks})", days):
         for item in json.loads(r["content"])["items"]:
-            seen = shown.setdefault(item["patent_id"], {"rank": None, "score": 0, "reasons": [], "company": None})
+            seen = shown.setdefault(item["patent_id"],
+                                    {"rank": None, "score": 0, "reasons": [], "company": None, "days_hot": 0})
+            if item.get("rank"):
+                seen["days_hot"] += 1
             if item.get("rank") and (seen["rank"] is None or item["rank"] < seen["rank"]):
                 seen["rank"] = item["rank"]
             if item.get("score", 0) >= seen["score"]:
@@ -83,19 +97,23 @@ def build_stats(conn: sqlite3.Connection, end: date, topic_order: list[str] | No
     rows = {r["id"]: r for r in conn.execute(
         f"SELECT * FROM patents WHERE id IN ({','.join('?' * len(shown))})", list(shown))} if shown else {}
     relevant = [pid for pid in shown if rows[pid]["relevant"] != 0]
-    by_country = Counter(rows[pid]["country"] for pid in relevant)
-    applicants = Counter(a for a in (_first_applicant(rows[pid]["applicant"]) for pid in relevant) if a)
+    counted = [pid for pid in relevant if days[0] <= (rows[pid]["first_shown_day"] or "") <= days[-1]] if new_only else relevant
+    by_country = Counter(rows[pid]["country"] for pid in counted)
+    applicants = Counter(a for a in (_first_applicant(rows[pid]["applicant"]) for pid in counted) if a)
     ipc = Counter()
-    for pid in relevant:
+    for pid in counted:
         for sub in {code[:4] for code in (rows[pid]["ipc"] or "").split("|") if code}:
             ipc[sub] += 1
 
     def brief(pid: int) -> dict:
         p = rows[pid]
-        return {"country": p["country"], "number": p["number"], "title": p["title_ko"] or p["title"],
+        # AI가 쓴 한국어 제목은 내보낼 때 물질 이름 표기를 맞춘다 (원래 제목은 그대로).
+        title = patents.standard_terms(p["title_ko"]) if p["title_ko"] and p["title_ko"] != p["title"] else p["title"]
+        return {"country": p["country"], "number": p["number"], "title": title,
                 "url": patents.display_url(p["country"], p["number"], p["url"]),
                 "applicant": _first_applicant(p["applicant"]), "rank": shown[pid]["rank"],
-                "score": shown[pid]["score"], "reasons": shown[pid]["reasons"], "company": shown[pid]["company"]}
+                "score": shown[pid]["score"], "reasons": shown[pid]["reasons"], "company": shown[pid]["company"],
+                "days_hot": shown[pid]["days_hot"]}
 
     spotlight = sorted((brief(pid) for pid in relevant if shown[pid]["rank"]),
                        key=lambda p: (p["rank"], -p["score"]))
@@ -110,11 +128,11 @@ def build_stats(conn: sqlite3.Connection, end: date, topic_order: list[str] | No
         "start": days[0], "end": days[-1], "days": days,
         "news": news, "briefings": briefings, "keywords": keywords,
         "patents": {
-            "total": len(relevant), "low": len(shown) - len(relevant),
+            "total": len(counted), "low": len(shown) - len(relevant),
             "by_country": [{"country": c, "name": COUNTRY_NAMES[c], "count": by_country.get(c, 0)} for c in COUNTRIES],
             "top_applicants": [{"name": n, "count": c} for n, c in applicants.most_common(8)],
             "top_ipc": [{"code": k, "label": IPC_LABELS.get(k, "기타 분류"), "count": c} for k, c in ipc.most_common(8)],
-            "spotlight": spotlight[:10], "companies": companies[:10],
+            "spotlight": spotlight[:spotlight_limit], "companies": companies[:10],
         },
         "stars": star_list,
     }
@@ -126,13 +144,14 @@ def _text(value, where: str) -> str:
     return value.strip()
 
 
-def validate_commentary(data) -> dict:
-    """{"summary": str, "trends": [{"title", "body", "topic"?}] 2~6개, "watch": [str] 1~5개}"""
+def validate_commentary(data, trends_range: tuple[int, int] = (2, 6)) -> dict:
+    """{"summary": str, "trends": [{"title", "body", "topic"?}] 2~6개(월간은 3~8개), "watch": [str] 1~5개}"""
     if not isinstance(data, dict):
         raise WeeklyError("최상위는 JSON 객체여야 합니다.")
     trends = data.get("trends")
-    if not isinstance(trends, list) or not 2 <= len(trends) <= 6:
-        raise WeeklyError("trends는 2~6개짜리 배열이어야 합니다.")
+    low, high = trends_range
+    if not isinstance(trends, list) or not low <= len(trends) <= high:
+        raise WeeklyError(f"trends는 {low}~{high}개짜리 배열이어야 합니다.")
     watch = data.get("watch")
     if not isinstance(watch, list) or not 1 <= len(watch) <= 5:
         raise WeeklyError("watch는 1~5개짜리 배열이어야 합니다.")
@@ -159,18 +178,22 @@ def save(conn: sqlite3.Connection, stats: dict, commentary) -> dict:
     return checked
 
 
-def get(conn: sqlite3.Connection, end: date) -> dict | None:
-    row = conn.execute("SELECT * FROM weekly_reports WHERE end_day = ?", (end.isoformat(),)).fetchone()
-    if row is None:
-        return None
-    stats = json.loads(row["stats"])
-    # 예전에 저장한 주간 통계의 해외 특허 주소도 지금 규칙(미국은 USPTO 원문)으로 보여 주고,
-    # Google Patents가 404일 때를 대비해 Espacenet 주소(alt_url)를 하나 더 붙인다.
+def fix_links(stats: dict) -> dict:
+    """예전에 저장한 통계의 해외 특허 주소도 지금 규칙(미국은 USPTO 원문)으로 보여 주고,
+    Google Patents가 404일 때를 대비해 Espacenet 주소(alt_url)를 하나 더 붙인다."""
     for p in [*stats["patents"]["spotlight"], *stats["patents"]["companies"], *stats.get("stars", [])]:
         if p.get("country") and p.get("number"):
             p["url"] = patents.display_url(p["country"], p["number"], p.get("url"))
             p["url_label"] = patents.url_label(p["url"])
             p["alt_url"] = patents.espacenet_url(p["country"], p["number"])
+    return stats
+
+
+def get(conn: sqlite3.Connection, end: date) -> dict | None:
+    row = conn.execute("SELECT * FROM weekly_reports WHERE end_day = ?", (end.isoformat(),)).fetchone()
+    if row is None:
+        return None
+    stats = fix_links(json.loads(row["stats"]))
     return {"end": row["end_day"], "start": stats["start"], "created_at": row["created_at"],
             "stats": stats, "commentary": json.loads(row["commentary"])}
 

@@ -126,7 +126,8 @@ allowed-tools: PowerShell(.venv\Scripts\python.exe -m patent_radar *), Edit(data
 컴퓨터가 꺼져 있으면 예약 작업은 앱을 열 때 오늘 몫만 한 번 실행한다. 그 사이 날짜는 다음 실행이
 `.venv\Scripts\python.exe -m patent_radar gaps`로 찾아 **오늘 뉴스를 모으기 전에, 오래된 날부터 하루씩** 채운다.
 `gaps`는 최근 7일 가운데 뉴스 브리핑이 없는 날(`news`), 특허를 채울 날(`patents`: 뉴스 브리핑이 있는 날만, 오래된 날부터
-한 번에 최대 3일, 나머지는 `patents_later`), 다시 만들 주간 리포트(`weeks`)와 월요일을 건너뛰어 빠진 주간 리포트(`weeks_missing`)를
+한 번에 최대 3일, 나머지는 `patents_later`), 다시 만들 주간 리포트(`weeks`)와 월요일을 건너뛰어 빠진 주간 리포트(`weeks_missing`), 다시 만들 월간 리포트(`months`)와
+1일을 건너뛰어 빠진 지난달 월간 리포트(`months_missing`)를
 JSON으로 알려 준다. 그보다 오래된 날은 사용자가 요청할 때 아래 순서로 채운다.
 
 1. `.venv\Scripts\python.exe -m patent_radar news --json --day YYYY-MM-DD`

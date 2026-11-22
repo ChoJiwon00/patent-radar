@@ -310,3 +310,13 @@ def test_past_day_warning_says_when_results_were_only_later_patents(conn):
 
     assert content["items"] == []
     assert any("2026-11-03 뒤에 공개된 1건은 뺌" in w for w in content["warnings"])
+
+
+def test_rescore_with_unchanged_content_keeps_the_saved_time(conn):
+    client = FakeClient({("KR", A.ko): [found("KR", "k1")]})
+    patents.collect(conn, client, [A], date(2026, 10, 21), SETTINGS)
+    conn.execute("UPDATE patent_briefings SET created_at = 'old' WHERE day = '2026-10-21'")
+
+    patents.collect(conn, None, [], date(2026, 10, 21), SETTINGS)  # 순위만 다시 매기기, 바뀐 것 없음
+
+    assert conn.execute("SELECT created_at FROM patent_briefings WHERE day = '2026-10-21'").fetchone()[0] == "old"
